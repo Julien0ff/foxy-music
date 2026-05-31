@@ -172,6 +172,10 @@ module.exports = {
 
                     queue.player = player;
 
+                    player.on('start', () => {
+                        updatePanel(interaction.client, interaction.guild.id);
+                    });
+
                     player.on('end', (reason) => {
                         if (reason.reason === 'REPLACED') return;
                         playNext(interaction.guild.id, interaction.client);

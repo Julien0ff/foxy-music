@@ -3,6 +3,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const { getGuildConfig } = require('./utils/db');
+const { updatePanel } = require('./utils/panelUpdater');
 
 function startServer(client) {
     const app = express();
@@ -117,6 +118,10 @@ function startServer(client) {
                 });
                 queue.player = player;
                 
+                player.on('start', () => {
+                    updatePanel(client, guildId);
+                });
+
                 player.on('end', (reason) => {
                     if (reason.reason === 'REPLACED') return;
                     const command = client.commands.get('play');
@@ -325,6 +330,10 @@ function startServer(client) {
                                 });
                                 queue.player = player;
                                 
+                                player.on('start', () => {
+                                    updatePanel(client, guildId);
+                                });
+
                                 player.on('end', (reason) => {
                                     if (reason.reason === 'REPLACED') return;
                                     const command = client.commands.get('play');

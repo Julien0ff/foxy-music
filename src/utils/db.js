@@ -52,8 +52,16 @@ function getGuildConfig(guildId) {
 function updateGuildConfig(guildId, updates) {
     const db = readDB();
     if (!db.guilds[guildId]) {
-        getGuildConfig(guildId); // Initialize it
-        db = readDB(); // Re-read
+        db.guilds[guildId] = {
+            panelChannelId: null,
+            panelMessageId: null,
+            prefix: '/',
+            language: 'fr',
+            stats: {
+                totalMessages: 0,
+                totalMusicPlayed: 0
+            }
+        };
     }
     db.guilds[guildId] = { ...db.guilds[guildId], ...updates };
     writeDB(db);
