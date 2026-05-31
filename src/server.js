@@ -441,9 +441,9 @@ function startServer(client) {
         });
     });
 
-    const PORT = process.env.PORT || 3001;
-    server.listen(PORT, () => {
-        console.log(`🚀 Serveur Web (API/Sockets) démarré sur le port ${PORT}`);
+    const PORT = process.env.PORT || process.env.SERVER_PORT || 3001;
+    server.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Serveur Web (API/Sockets) démarré sur le port ${PORT} (0.0.0.0)`);
     });
 
     return { app, server, io };
