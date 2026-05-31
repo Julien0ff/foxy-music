@@ -87,7 +87,21 @@ function App() {
     fetch(`${API_URL}/api/bot/info`)
       .then(res => res.json())
       .then(data => {
-        if (!data.error) setBotInfo(data);
+        if (!data.error) {
+          setBotInfo(data);
+          
+          // Mise à jour dynamique du favicon avec l'avatar du bot
+          if (data.avatar) {
+            let link = document.querySelector("link[rel~='icon']");
+            if (!link) {
+              link = document.createElement('link');
+              link.rel = 'icon';
+              document.head.appendChild(link);
+            }
+            link.href = data.avatar;
+            link.type = 'image/png';
+          }
+        }
       })
       .catch(console.error);
 
