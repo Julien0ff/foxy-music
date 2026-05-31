@@ -8,6 +8,7 @@ import VoiceChannels from './components/VoiceChannels';
 import { Music } from 'lucide-react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import './App.css';
+import { API_URL } from './config';
 
 const CLIENT_ID = '1509947523949662380';
 const REDIRECT_URI = encodeURIComponent(window.location.origin);
@@ -64,7 +65,7 @@ function App() {
 
   // Fetch Discord User, Bot Info & Guilds
   useEffect(() => {
-    fetch('http://localhost:3001/api/bot/info')
+    fetch(`${API_URL}/api/bot/info`)
       .then(res => res.json())
       .then(data => {
         if (!data.error) setBotInfo(data);
@@ -95,7 +96,7 @@ function App() {
       .then(res => res.json())
       .then(guilds => {
         if (Array.isArray(guilds)) {
-          fetch('http://localhost:3001/api/user/guilds', {
+          fetch(`${API_URL}/api/user/guilds`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ guilds })
@@ -114,7 +115,7 @@ function App() {
   useEffect(() => {
     if (!user || !selectedGuildId) return;
 
-    fetch(`http://localhost:3001/api/guilds/${selectedGuildId}/queue`)
+    fetch(`${API_URL}/api/guilds/${selectedGuildId}/queue`)
       .then(res => res.json())
       .then(data => {
         setQueueState({
@@ -129,7 +130,7 @@ function App() {
       })
       .catch(err => console.error("Failed to fetch initial queue:", err));
 
-    const socket = io('http://localhost:3001');
+    const socket = io(API_URL);
 
     socket.on('connect', () => {
       console.log('Connected to Foxy Music API');
@@ -161,7 +162,7 @@ function App() {
 
   const handleConnectBot = async (channelId) => {
     try {
-      await fetch(`http://localhost:3001/api/guilds/${selectedGuildId}/connect`, {
+      await fetch(`${API_URL}/api/guilds/${selectedGuildId}/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ channelId })

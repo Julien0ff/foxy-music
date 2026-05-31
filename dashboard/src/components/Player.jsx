@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Play, Pause, SkipForward, Music, Repeat } from 'lucide-react';
+import { API_URL } from '../config';
 
 // Helper to extract YouTube video ID
 const getYoutubeThumbnail = (url) => {
@@ -45,7 +46,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     if (!currentTrack) return;
     const action = isPlaying ? 'pause' : 'resume';
     try {
-      const res = await fetch(`http://localhost:3001/api/guilds/${guildId}/${action}`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/api/guilds/${guildId}/${action}`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setQueueState(prev => ({ ...prev, isPlaying: data.isPlaying }));
@@ -58,7 +59,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const handleSkip = async () => {
     if (!currentTrack) return;
     try {
-      await fetch(`http://localhost:3001/api/guilds/${guildId}/skip`, { method: 'POST' });
+      await fetch(`${API_URL}/api/guilds/${guildId}/skip`, { method: 'POST' });
     } catch (e) {
       console.error(e);
     }
@@ -67,7 +68,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const handleLoop = async () => {
     if (!currentTrack) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/guilds/${guildId}/loop`, { method: 'POST' });
+      const res = await fetch(`${API_URL}/api/guilds/${guildId}/loop`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         setQueueState(prev => ({ ...prev, loop: data.loop }));
@@ -81,7 +82,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     const newVol = parseInt(e.target.value);
     setQueueState(prev => ({ ...prev, volume: newVol }));
     try {
-      await fetch(`http://localhost:3001/api/guilds/${guildId}/volume`, {
+      await fetch(`${API_URL}/api/guilds/${guildId}/volume`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ volume: newVol })

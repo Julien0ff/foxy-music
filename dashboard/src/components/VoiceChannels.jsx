@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Headphones } from 'lucide-react';
+import { API_URL } from '../config';
 
 export default function VoiceChannels({ guildId, onConnect }) {
   const [voiceData, setVoiceData] = useState({ channels: [], botVoiceChannel: null });
@@ -10,7 +11,7 @@ export default function VoiceChannels({ guildId, onConnect }) {
     
     const fetchVoice = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/guilds/${guildId}/voice`);
+        const res = await fetch(`${API_URL}/api/guilds/${guildId}/voice`);
         const data = await res.json();
         if (data && !data.error) {
           setVoiceData(data);

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
+import { API_URL } from '../config';
 
 export default function SearchBar({ guildId }) {
   const [query, setQuery] = useState('');
@@ -11,7 +12,7 @@ export default function SearchBar({ guildId }) {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`http://localhost:3001/api/guilds/${guildId}/play`, {
+      const res = await fetch(`${API_URL}/api/guilds/${guildId}/play`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
