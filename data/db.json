@@ -1,0 +1,14 @@
+{
+  "guilds": {
+    "1256925148922253352": {
+      "panelChannelId": "1510433560136253621",
+      "panelMessageId": "1510433561256136796",
+      "prefix": "/",
+      "language": "fr",
+      "stats": {
+        "totalMessages": 0,
+        "totalMusicPlayed": 0
+      }
+    }
+  }
+}

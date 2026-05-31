@@ -1,0 +1,623 @@
+:root {
+  --primary: #ff416c;
+  --secondary: #ff4b2b;
+  --bg-color: #0a0a0a;
+  --surface: rgba(30, 30, 30, 0.4);
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --surface-hover: rgba(255, 255, 255, 0.1);
+  --text-main: #ffffff;
+  --text-muted: #888888;
+  --radius-lg: 24px;
+  --radius-md: 16px;
+  --radius-sm: 8px;
+  --blur-strong: blur(80px);
+  --blur-medium: blur(30px);
+  --transition: all 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  min-height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ========================================
+   APP CONTAINER
+   ======================================== */
+.app-container {
+  height: 100vh;
+  display: flex;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.landing-container {
+  justify-content: center;
+  align-items: center;
+}
+
+/* ========================================
+   BACKGROUND
+   ======================================== */
+.dynamic-bg {
+  position: fixed;
+  top: -30%;
+  left: -30%;
+  width: 160%;
+  height: 160%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(120px) brightness(0.5) saturate(1.5);
+  z-index: -1;
+  transition: background-image 2s ease-in-out;
+}
+
+/* ========================================
+   GLASSMORPHISM
+   ======================================== */
+.glass-panel {
+  background: var(--surface);
+  backdrop-filter: var(--blur-medium);
+  -webkit-backdrop-filter: var(--blur-medium);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* ========================================
+   SIDEBAR (Discord-style narrow icon bar)
+   ======================================== */
+.sidebar {
+  width: 72px;
+  min-width: 72px;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  z-index: 10;
+  height: 100vh;
+  position: relative;
+}
+
+/* Hide scrollbar but keep scroll */
+.sidebar::-webkit-scrollbar { width: 0; }
+
+.sidebar-header {
+  padding: 8px 0 12px 0;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.sidebar-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background: var(--surface-border);
+  border-radius: 1px;
+}
+
+.bot-avatar-sidebar {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  object-fit: cover;
+  transition: border-radius 0.3s ease;
+}
+
+.bot-avatar-sidebar:hover {
+  border-radius: 50%;
+}
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.sidebar-list::-webkit-scrollbar { width: 0; }
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+/* Discord-style left pill indicator */
+.sidebar-item::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 0;
+  background: var(--text-main);
+  border-radius: 0 4px 4px 0;
+  transition: height 0.2s ease;
+}
+
+.sidebar-item:hover::before {
+  height: 20px;
+}
+
+.sidebar-item.active::before {
+  height: 36px;
+  background: var(--primary);
+}
+
+.sidebar-item:hover {
+  border-radius: 16px;
+}
+
+.sidebar-item.active {
+  border-radius: 16px;
+}
+
+.guild-icon, .guild-icon-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: inherit;
+  object-fit: cover;
+  transition: border-radius 0.3s ease;
+}
+
+.guild-icon-placeholder {
+  background: #2b2d31;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.sidebar-empty {
+  padding: 10px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Sidebar Footer (User Profile) */
+.sidebar-footer {
+  position: relative;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 2px solid var(--surface-border);
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar-user {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+.sidebar-user:hover {
+  opacity: 0.8;
+}
+
+.sidebar-user-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-popup {
+  position: absolute;
+  bottom: 0;
+  left: calc(100% + 8px);
+  width: 240px;
+  background: #1e1f22;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  z-index: 100;
+  overflow: hidden;
+  animation: popupIn 0.15s ease-out;
+}
+
+@keyframes popupIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.user-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.popup-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.popup-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.popup-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.popup-tag {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.popup-logout {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #ed4245;
+  padding: 12px 16px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.popup-logout:hover {
+  background: rgba(237, 66, 69, 0.1);
+}
+
+/* ========================================
+   MAIN WRAPPER & LAYOUT
+   ======================================== */
+.main-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ========================================
+   DASHBOARD GRID (3 columns)
+   ======================================== */
+.dashboard-layout {
+  flex: 1;
+  display: flex;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 190px 1fr 280px;
+  width: 100%;
+  height: 100%;
+}
+
+/* Left column: voice channels */
+.left-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px 10px 12px 16px;
+  overflow-y: auto;
+  border-right: 1px solid var(--surface-border);
+  background: rgba(0,0,0,0.15);
+}
+
+/* Center column: search + player */
+.center-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  overflow: hidden;
+  padding: 16px 32px 24px 32px;
+  gap: 0;
+}
+
+.search-wrapper {
+  width: 100%;
+  max-width: 480px;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.player-wrapper {
+  flex: 1;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+}
+
+/* Right column: queue */
+.right-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px 16px 16px 12px;
+  overflow: hidden;
+  border-left: 1px solid var(--surface-border);
+  background: rgba(0,0,0,0.15);
+}
+
+.queue-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.queue-wrapper::-webkit-scrollbar { width: 4px; }
+.queue-wrapper::-webkit-scrollbar-track { background: transparent; }
+.queue-wrapper::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
+
+/* ========================================
+   VOICE CHANNELS
+   ======================================== */
+.voice-channels {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  backdrop-filter: none;
+}
+
+.voice-channels h3 {
+  font-size: 11px;
+  margin-bottom: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.channels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.channel-item {
+  background: transparent;
+  border-radius: 4px;
+  padding: 6px 8px;
+  transition: var(--transition);
+}
+
+.channel-item.can-connect {
+  cursor: pointer;
+}
+
+.channel-item.can-connect:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.channel-item.can-connect:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.channel-item.bot-active {
+  border-left: 2px solid var(--primary);
+  background: rgba(255, 65, 108, 0.06);
+}
+
+.channel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.channel-item.can-connect:hover .channel-header {
+  color: var(--text-main);
+}
+
+.channel-members {
+  margin-top: 4px;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.member-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.member-name {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.no-channels {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.voice-channels-loading {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 20px;
+}
+
+/* ========================================
+   LANDING PAGE
+   ======================================== */
+.landing-content {
+  text-align: center;
+  padding: 60px 40px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  animation: fadeIn 0.8s ease-out;
+}
+
+.logo-container {
+  background: transparent;
+  padding: 0;
+  margin-bottom: 5px;
+}
+
+.landing-content h1 {
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.landing-content p {
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.login-button {
+  background: #5865F2;
+  color: white;
+  text-decoration: none;
+  padding: 14px 28px;
+  border-radius: 30px;
+  font-weight: 600;
+  font-size: 16px;
+  transition: var(--transition);
+  box-shadow: 0 4px 15px rgba(88, 101, 242, 0.4);
+}
+
+.login-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(88, 101, 242, 0.6);
+}
+
+/* ========================================
+   NO SERVER STATE
+   ======================================== */
+.no-server-selected {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  color: var(--text-muted);
+  text-align: center;
+  gap: 15px;
+}
+
+/* ========================================
+   LOOP BUTTON
+   ======================================== */
+.loop-btn {
+  transition: var(--transition);
+}
+
+.loop-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.loop-btn.active-loop svg {
+  opacity: 1 !important;
+  color: var(--primary) !important;
+  filter: drop-shadow(0 0 6px var(--primary));
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+@media (max-width: 1100px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .left-column {
+    display: none;
+  }
+  .right-column {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 60px;
+    min-width: 60px;
+  }
+  .guild-icon, .guild-icon-placeholder, .sidebar-item {
+    width: 40px;
+    height: 40px;
+  }
+  .bot-avatar-sidebar {
+    width: 40px;
+    height: 40px;
+  }
+}
