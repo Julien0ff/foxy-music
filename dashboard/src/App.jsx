@@ -236,11 +236,13 @@ function App() {
     );
   }
 
+  const bgCover = queueState.currentTrack?.artworkUrl || getYoutubeThumbnail(queueState.currentTrack?.url);
+
   return (
     <div className="app-container">
       <div 
         className="dynamic-bg" 
-        style={{ backgroundImage: queueState.currentTrack && getYoutubeThumbnail(queueState.currentTrack.url) ? `url(${getYoutubeThumbnail(queueState.currentTrack.url)})` : 'none' }}
+        style={{ backgroundImage: bgCover ? `url(${bgCover})` : 'none' }}
       ></div>
 
       <Sidebar 
