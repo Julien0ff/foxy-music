@@ -55,13 +55,6 @@ const getActivePage = () => {
 function App() {
   const activePage = getActivePage();
 
-  if (activePage === 'terms') {
-    return <TermsOfService />;
-  }
-  if (activePage === 'privacy') {
-    return <PrivacyPolicy />;
-  }
-
   const [token, setToken] = useState(getInitialToken);
   const [user, setUser] = useState(null);
   const [botInfo, setBotInfo] = useState(null);
@@ -197,6 +190,13 @@ function App() {
       console.error(e);
     }
   };
+
+  if (activePage === 'terms') {
+    return <TermsOfService />;
+  }
+  if (activePage === 'privacy') {
+    return <PrivacyPolicy />;
+  }
 
   if (!user) {
     const defaultAvatar = 'https://cdn.discordapp.com/embed/avatars/0.png';
