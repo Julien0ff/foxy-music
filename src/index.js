@@ -1,7 +1,7 @@
 require('dotenv').config();
 const dns = require('node:dns');
 dns.setDefaultResultOrder('ipv4first');
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord.js');
 const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
@@ -69,6 +69,17 @@ if (fs.existsSync(commandsPath)) {
 
 client.once('ready', () => {
     console.log(`🦊 Foxy is online! Logged in as ${client.user.tag}`);
+    
+    // Configuration de la présence du bot
+    const serverCount = client.guilds.cache.size;
+    client.user.setPresence({
+        activities: [{
+            name: `${serverCount} serveurs 🦊`,
+            type: ActivityType.Listening
+        }],
+        status: 'idle'
+    });
+
     // Démarrer l'API Web et WebSockets
     startServer(client);
 });

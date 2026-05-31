@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActivityType } = require('discord.js');
 const { getGuildConfig } = require('./db');
 
 function formatTime(ms) {
@@ -47,9 +47,27 @@ async function updatePanel(client, guildId) {
         if (!queue || (!queue.currentTrack && queue.tracks.length === 0)) {
             description = '**Aucune musique en cours de lecture.**\n\nEnvoyez un lien ou un titre dans ce salon pour commencer la lecture !';
             color = '#36393f';
+            // État par défaut quand rien ne joue
+            const serverCount = client.guilds.cache.size;
+            client.user.setPresence({
+                activities: [{
+                    name: `${serverCount} serveurs 🦊`,
+                    type: ActivityType.Listening
+                }],
+                status: 'idle'
+            });
         } else {
             if (queue.currentTrack) {
                 const current = queue.player ? queue.player.position : 0;
+                
+                // Mettre à jour le statut du bot avec la musique en cours
+                client.user.setPresence({
+                    activities: [{
+                        name: `${queue.currentTrack.title} 🎶`,
+                        type: ActivityType.Listening
+                    }],
+                    status: 'idle'
+                });
                 const total = queue.currentTrack.duration || 0;
                 const bar = createProgressBar(current, total, 20);
                 const timeStr = `${formatTime(current)} / ${formatTime(total)}`;

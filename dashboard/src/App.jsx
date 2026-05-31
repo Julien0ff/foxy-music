@@ -9,6 +9,8 @@ import { Music } from 'lucide-react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import './App.css';
 import { API_URL } from './config';
+import TermsOfService from './components/TermsOfService';
+import PrivacyPolicy from './components/PrivacyPolicy';
 
 const CLIENT_ID = '1509947523949662380';
 const REDIRECT_URI = encodeURIComponent(window.location.origin);
@@ -35,7 +37,31 @@ const getInitialToken = () => {
   return localStorage.getItem('discord_token');
 };
 
+const getActivePage = () => {
+  const path = window.location.pathname;
+  const hash = window.location.hash;
+  const params = new URLSearchParams(window.location.search);
+  const page = params.get('page');
+
+  if (path === '/terms-of-service' || path === '/terms' || hash === '#/terms-of-service' || hash === '#/terms' || page === 'terms') {
+    return 'terms';
+  }
+  if (path === '/privacy-policy' || path === '/privacy' || hash === '#/privacy-policy' || hash === '#/privacy' || page === 'privacy') {
+    return 'privacy';
+  }
+  return 'app';
+};
+
 function App() {
+  const activePage = getActivePage();
+
+  if (activePage === 'terms') {
+    return <TermsOfService />;
+  }
+  if (activePage === 'privacy') {
+    return <PrivacyPolicy />;
+  }
+
   const [token, setToken] = useState(getInitialToken);
   const [user, setUser] = useState(null);
   const [botInfo, setBotInfo] = useState(null);
@@ -185,6 +211,12 @@ function App() {
           <h1>Foxy Music</h1>
           <p>La meilleure expérience musicale pour tes serveurs Discord.</p>
           <a href={OAUTH_URL} className="login-button">Se connecter avec Discord</a>
+          
+          <div style={{ marginTop: '20px', display: 'flex', gap: '16px', fontSize: '12px' }}>
+            <a href="/terms-of-service" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Conditions d'utilisation</a>
+            <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>|</span>
+            <a href="/privacy-policy" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Politique de confidentialité</a>
+          </div>
         </div>
       </div>
     );
