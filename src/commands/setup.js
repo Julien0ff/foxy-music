@@ -48,7 +48,8 @@ module.exports = {
             const row2 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('foxy_vol_down').setEmoji('🔉').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('foxy_vol_up').setEmoji('🔊').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId('foxy_queue').setLabel('File d\'attente').setStyle(ButtonStyle.Success)
+                new ButtonBuilder().setCustomId('foxy_queue').setLabel('File d\'attente').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('foxy_lyrics').setEmoji('🎤').setLabel('Paroles').setStyle(ButtonStyle.Secondary)
             );
 
             // Send message in the new channel

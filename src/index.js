@@ -167,9 +167,13 @@ client.on('interactionCreate', async interaction => {
                     const extra = queue.tracks.length > 10 ? `\n*... et ${queue.tracks.length - 10} autres titres*` : '';
                     await interaction.reply({ content: `**File d'attente :**\n${tracksList}${extra}`, ephemeral: true });
                 }
-            } else if (interaction.customId === 'foxy_refresh_np') {
-                const cmd = client.commands.get('nowplaying');
-                if (cmd) await cmd.execute(interaction);
+            } else if (interaction.customId === 'foxy_lyrics') {
+                const lyricsCmd = client.commands.get('lyrics');
+                if (lyricsCmd) {
+                    await lyricsCmd.execute(interaction);
+                } else {
+                    await interaction.reply({ content: '❌ Commande paroles introuvable.', ephemeral: true });
+                }
             } else {
                 await interaction.reply({ content: 'Bouton non géré pour le moment.', ephemeral: true });
             }

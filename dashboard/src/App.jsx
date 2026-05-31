@@ -60,6 +60,7 @@ function App() {
   const [botInfo, setBotInfo] = useState(null);
   const [sharedGuilds, setSharedGuilds] = useState([]);
   const [selectedGuildId, setSelectedGuildId] = useState(null);
+  const [lyricsMode, setLyricsMode] = useState(false);
   
   const [queueState, setQueueState] = useState({
     currentTrack: null,
@@ -258,7 +259,7 @@ function App() {
 
         <main className="dashboard-layout">
           {selectedGuildId ? (
-            <div className="dashboard-grid">
+            <div className={`dashboard-grid ${lyricsMode ? 'lyrics-active-grid' : ''}`}>
               <div className="left-column">
                 <VoiceChannels 
                   guildId={selectedGuildId} 
@@ -280,15 +281,18 @@ function App() {
                     volume={queueState.volume}
                     loop={queueState.loop}
                     setQueueState={setQueueState}
+                    onLyricsToggle={setLyricsMode}
                   />
                 </div>
               </div>
 
-              <div className="right-column">
-                <div className="queue-wrapper">
-                  <QueueList tracks={queueState.tracks} />
+              {!lyricsMode && (
+                <div className="right-column">
+                  <div className="queue-wrapper">
+                    <QueueList tracks={queueState.tracks} />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             <div className="no-server-selected">

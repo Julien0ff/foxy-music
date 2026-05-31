@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { getGuildConfig } = require('./utils/db');
 const { updatePanel } = require('./utils/panelUpdater');
+const { fetchLyrics } = require('./utils/lyrics');
 
 function startServer(client) {
     const app = express();
@@ -434,6 +435,36 @@ function startServer(client) {
             return res.json({ success: true, volume: queue.volume });
         }
         res.status(400).json({ error: 'No active player or invalid volume' });
+    });
+
+    // --- Lyrics ---
+    app.get('/api/guilds/:id/lyrics', async (req, res) => {
+        const guildId = req.params.id;
+        const queue = global.queues ? global.queues.get(guildId) : null;
+        if (!queue || !queue.currentTrack) {
+            return res.status(404).json({ error: 'No track playing' });
+        }
+        const lyrics = await fetchLyrics(queue.currentTrack.title);
+        if (!lyrics) {
+            return res.status(404).json({ error: 'Lyrics not found' });
+        }
+        return res.json(lyrics);
+    });
+
+    // --- Seek ---
+    app.post('/api/guilds/:id/seek', async (req, res) => {
+        const queue = global.queues ? global.queues.get(req.params.id) : null;
+        const position = parseInt(req.body.position);
+        if (!queue || !queue.player || isNaN(position)) {
+            return res.status(400).json({ error: 'No active player or invalid position' });
+        }
+        try {
+            await queue.player.seekTo(position);
+            return res.json({ success: true, position });
+        } catch (e) {
+            console.error('[Seek Error]', e);
+            return res.status(500).json({ error: 'Seek failed' });
+        }
     });
 
     io.on('connection', (socket) => {
