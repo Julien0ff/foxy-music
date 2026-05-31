@@ -6,8 +6,18 @@ function TermsOfService() {
   };
 
   return (
-    <div className="app-container landing-container" style={{ overflowY: 'auto', padding: '40px 20px', height: 'auto', minHeight: '100vh' }}>
-      <div className="dynamic-bg" style={{ filter: 'blur(100px) brightness(0.4) saturate(1.2)', background: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)', opacity: 0.15 }}></div>
+    <div style={{ 
+      overflowY: 'auto', 
+      padding: '60px 20px', 
+      height: '100vh', 
+      width: '100vw', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      position: 'relative',
+      zIndex: 1
+    }}>
+      <div className="dynamic-bg" style={{ filter: 'blur(100px) brightness(0.4) saturate(1.2)', background: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)', opacity: 0.15, top: 0, left: 0, width: '100%', height: '100%' }}></div>
       
       <div className="landing-content glass-panel" style={{ maxWidth: '800px', width: '100%', textAlign: 'left', alignItems: 'stretch', padding: '40px' }}>
         
