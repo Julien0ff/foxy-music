@@ -415,6 +415,18 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   min-height: 0;
 }
 
+/* Lyrics mode: player-wrapper becomes full-screen, no max-width */
+.center-column.lyrics-center {
+  padding: 0 !important;
+  align-items: stretch;
+}
+
+.player-wrapper.lyrics-player-wrapper {
+  max-width: none !important;
+  align-items: stretch;
+  padding: 0;
+}
+
 /* Right column: queue */
 .right-column {
   display: flex;

@@ -10,6 +10,99 @@ const getYoutubeThumbnail = (url) => {
   return null;
 };
 
+/**
+ * Nettoie un titre pour la recherche de paroles (retire les parasites YouTube)
+ */
+function cleanForSearch(str) {
+  if (!str) return '';
+  return str
+    .replace(/\(.*?\)/g, '')   // (Official Video), (Lyrics), etc.
+    .replace(/\[.*?\]/g, '')   // [HD], [4K], etc.
+    .replace(/【.*?】/g, '')    // crochets japonais
+    .replace(/official\s*(music)?\s*(video|audio|lyric)/gi, '')
+    .replace(/\blyrics?\b/gi, '')
+    .replace(/\bft\.?\s+|\bfeat\.?\s+/gi, '')
+    .replace(/\bhq\b|\bhd\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * Parse le format LRC en tableau [{ time (ms), text }]
+ */
+function parseLrc(lrcText) {
+  if (!lrcText) return [];
+  const lines = [];
+  const lineRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
+  for (const rawLine of lrcText.split('\n')) {
+    const match = rawLine.match(lineRegex);
+    if (!match) continue;
+    const minutes = parseInt(match[1], 10);
+    const seconds = parseInt(match[2], 10);
+    const ms = parseInt(match[3].padEnd(3, '0'), 10);
+    const time = (minutes * 60 + seconds) * 1000 + ms;
+    const text = match[4].trim();
+    if (text) lines.push({ time, text });
+  }
+  return lines.sort((a, b) => a.time - b.time);
+}
+
+/**
+ * Recherche les paroles directement depuis le navigateur via LrcLib
+ * Essaie d'abord avec artiste+titre séparés, puis avec le titre complet.
+ */
+async function fetchLyricsClient(trackTitle) {
+  if (!trackTitle) return null;
+  const LRCLIB = 'https://lrclib.net/api';
+  const HEADERS = { 'User-Agent': 'Foxy Music Dashboard (https://github.com/Julien0ff/foxy-music)' };
+
+  // Sépare "Artiste - Titre" si le tiret est présent
+  let artist = '';
+  let title;
+  const dashIdx = trackTitle.indexOf(' - ');
+  if (dashIdx !== -1) {
+    artist = cleanForSearch(trackTitle.slice(0, dashIdx));
+    title  = cleanForSearch(trackTitle.slice(dashIdx + 3));
+  } else {
+    title = cleanForSearch(trackTitle);
+  }
+
+  // Tentative 1 : recherche structurée avec artiste séparé
+  if (artist) {
+    try {
+      const r = await fetch(`${LRCLIB}/search?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`, { headers: HEADERS });
+      if (r.ok) {
+        const results = await r.json();
+        const best = results.find(x => x.syncedLyrics) || results.find(x => x.plainLyrics);
+        if (best) return {
+          title: best.trackName || title,
+          artist: best.artistName || artist,
+          plain: best.plainLyrics || null,
+          synced: best.syncedLyrics ? parseLrc(best.syncedLyrics) : []
+        };
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Tentative 2 : recherche texte libre avec titre nettoyé
+  const query = artist ? `${artist} ${title}` : title;
+  try {
+    const r = await fetch(`${LRCLIB}/search?q=${encodeURIComponent(query)}`, { headers: HEADERS });
+    if (r.ok) {
+      const results = await r.json();
+      const best = results.find(x => x.syncedLyrics) || results.find(x => x.plainLyrics);
+      if (best) return {
+        title: best.trackName || title,
+        artist: best.artistName || artist,
+        plain: best.plainLyrics || null,
+        synced: best.syncedLyrics ? parseLrc(best.syncedLyrics) : []
+      };
+    }
+  } catch { /* ignore */ }
+
+  return null;
+}
+
 function formatTime(ms) {
   if (!ms || isNaN(ms)) return '0:00';
   const seconds = Math.floor(ms / 1000);
@@ -160,8 +253,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
         }
       });
 
-      fetch(`${API_URL}/api/guilds/${guildId}/lyrics`)
-        .then(res => res.ok ? res.json() : null)
+      fetchLyricsClient(currentTrack.title)
         .then(data => {
           if (active) {
             setLyrics(data);
@@ -329,6 +421,12 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
       {/* Right side: Lyrics Panel */}
       {showLyrics && (
         <div className="lyrics-panel">
+          {lyrics && (
+            <div className="lyrics-panel-header">
+              <span className="lyrics-panel-track">{lyrics.title}</span>
+              {lyrics.artist && <span className="lyrics-panel-artist">{lyrics.artist}</span>}
+            </div>
+          )}
           <LyricsView
             lyrics={lyrics}
             currentTimeMs={localProgress}

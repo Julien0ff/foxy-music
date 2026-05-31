@@ -3,4 +3,4 @@
 // ou utilisez votre sous-domaine personnalisé (ex: https://api.foxymusic.lunaverse.fr) une fois configuré.
 export const API_URL = import.meta.env.PROD
   ? 'https://603508.site.bot-hosting.cloud'
-  : 'http://localhost:3001';
+  : window.location.origin;

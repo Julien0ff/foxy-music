@@ -30,6 +30,17 @@ const getInitialToken = () => {
     const accessToken = params.get('access_token');
     if (accessToken) {
       localStorage.setItem('discord_token', accessToken);
+      
+      // Si ouvert depuis un iframe d'activité, on notifie la fenêtre parente et ferme l'onglet de login
+      try {
+        if (window.opener) {
+          window.opener.postMessage({ type: 'DISCORD_TOKEN', token: accessToken }, window.location.origin);
+          window.close();
+        }
+      } catch (e) {
+        console.error("Impossible de notifier la fenêtre parente :", e);
+      }
+
       window.history.replaceState(null, null, ' ');
       return accessToken;
     }
@@ -72,13 +83,40 @@ function App() {
     loop: false
   });
 
-  // Discord Activity Setup
+  // Écouteurs pour la synchronisation du token OAuth depuis le popup
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data && event.data.type === 'DISCORD_TOKEN') {
+        const newToken = event.data.token;
+        console.log("Token OAuth reçu via postMessage de la popup !");
+        setToken(newToken);
+      }
+    };
+
+    const handleStorage = (event) => {
+      if (event.key === 'discord_token') {
+        console.log("Token OAuth reçu via événement de stockage !");
+        setToken(event.newValue);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  // Configuration de l'activité Discord
   useEffect(() => {
     if (window.top !== window.self) {
       const sdk = new DiscordSDK(CLIENT_ID);
       sdk.ready().then(() => {
-        console.log("Discord SDK is ready for Activity!");
-        // Note: For fully seamless auth in Activity, a backend token exchange is required.
+        console.log("Discord SDK est prêt pour l'Activité ! Serveur ID :", sdk.guildId);
+        if (sdk.guildId) {
+          setSelectedGuildId(sdk.guildId);
+        }
       }).catch(console.error);
     }
   }, []);
@@ -225,7 +263,7 @@ function App() {
           </div>
           <h1>Foxy Music</h1>
           <p>La meilleure expérience musicale pour tes serveurs Discord.</p>
-          <a href={OAUTH_URL} className="login-button">Se connecter avec Discord</a>
+          <a href={OAUTH_URL} target="_blank" rel="noopener noreferrer" className="login-button">Se connecter avec Discord</a>
           
           <div style={{ marginTop: '20px', display: 'flex', gap: '16px', fontSize: '12px' }}>
             <a href="#/terms-of-service" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Conditions d'utilisation</a>
@@ -267,11 +305,13 @@ function App() {
                 />
               </div>
               
-              <div className="center-column">
-                <div className="search-wrapper">
-                  <SearchBar guildId={selectedGuildId} />
-                </div>
-                <div className="player-wrapper">
+            <div className={`center-column ${lyricsMode ? 'lyrics-center' : ''}`}>
+                {!lyricsMode && (
+                  <div className="search-wrapper">
+                    <SearchBar guildId={selectedGuildId} />
+                  </div>
+                )}
+                <div className={`player-wrapper ${lyricsMode ? 'lyrics-player-wrapper' : ''}`}>
                   <Player 
                     guildId={selectedGuildId}
                     currentTrack={queueState.currentTrack} 
