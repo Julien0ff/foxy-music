@@ -25,6 +25,22 @@ function getYoutubeThumbnail(url) {
 
 async function updatePanel(client, guildId) {
     const config = getGuildConfig(guildId);
+    const queue = global.queues ? global.queues.get(guildId) : null;
+
+    // 1. Synchroniser en temps réel avec le Dashboard Web via Socket.io (toujours actif)
+    if (global.io) {
+        global.io.to(`queue_${guildId}`).emit('queue_update', {
+            currentTrack: queue?.currentTrack || null,
+            tracks: queue?.tracks || [],
+            isPlaying: queue?.player && !queue?.player.paused,
+            position: queue?.player ? queue.player.position : 0,
+            duration: queue?.currentTrack ? queue.currentTrack.duration || 0 : 0,
+            volume: queue?.volume || 100,
+            loop: queue?.loop || false
+        });
+    }
+
+    // 2. Mettre à jour l'embed de contrôle Discord si configuré
     if (!config.panelChannelId || !config.panelMessageId) return;
 
     try {
@@ -36,8 +52,6 @@ async function updatePanel(client, guildId) {
 
         const message = await channel.messages.fetch(config.panelMessageId).catch(() => null);
         if (!message) return;
-
-        const queue = global.queues ? global.queues.get(guildId) : null;
 
         let description = '';
         let title = '🦊 Foxy Music Panel';
@@ -102,19 +116,6 @@ async function updatePanel(client, guildId) {
         }
 
         await message.edit({ embeds: [embed] }).catch(() => { });
-
-        // Synchronize with the Web Panel via Socket.io
-        if (global.io) {
-            global.io.to(`queue_${guildId}`).emit('queue_update', {
-                currentTrack: queue?.currentTrack || null,
-                tracks: queue?.tracks || [],
-                isPlaying: queue?.player && !queue?.player.paused,
-                position: queue?.player ? queue.player.position : 0,
-                duration: queue?.currentTrack ? queue.currentTrack.duration || 0 : 0,
-                volume: queue?.volume || 100,
-                loop: queue?.loop || false
-            });
-        }
     } catch (e) {
         console.error('Error updating panel:', e);
     }
