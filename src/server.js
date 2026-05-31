@@ -444,6 +444,13 @@ function startServer(client) {
     const PORT = process.env.PORT || process.env.SERVER_PORT || 3001;
     server.listen(PORT, () => {
         console.log(`🚀 Serveur Web (API/Sockets) démarré sur le port ${PORT}`);
+    }).on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.warn(`⚠️ [WARNING] Le port ${PORT} est déjà utilisé par un processus fantôme sur l'hébergeur.`);
+            console.warn(`Le bot Discord va quand même démarrer, mais l'API et le dashboard web seront inactifs tant que l'ancien processus n'est pas éteint.`);
+        } else {
+            console.error('❌ Erreur du serveur web:', err);
+        }
     });
 
     return { app, server, io };

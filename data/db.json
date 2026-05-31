@@ -9,6 +9,16 @@
         "totalMessages": 0,
         "totalMusicPlayed": 0
       }
+    },
+    "1216443076168515724": {
+      "panelChannelId": "1510627368178417746",
+      "panelMessageId": "1510627370216722552",
+      "prefix": "/",
+      "language": "fr",
+      "stats": {
+        "totalMessages": 0,
+        "totalMusicPlayed": 0
+      }
     }
   }
 }
