@@ -23,8 +23,8 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
   const containerRef = useRef(null);
   const activeLineRef = useRef(null);
 
-  // Find the index of the currently active lyric line
-  const activeIndex = lyrics.synced.length > 0
+  // Find the index of the currently active lyric line safely
+  const activeIndex = (lyrics && lyrics.synced && lyrics.synced.length > 0)
     ? lyrics.synced.reduce((prev, line, i) => line.time <= currentTimeMs ? i : prev, -1)
     : -1;
 
@@ -47,7 +47,9 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
     );
   }
 
-  if (!lyrics) {
+  const hasNoLyrics = !lyrics || (!lyrics.plain && (!lyrics.synced || lyrics.synced.length === 0));
+
+  if (hasNoLyrics) {
     return (
       <div className="lyrics-container lyrics-empty">
         <Mic size={40} opacity={0.3} />
@@ -84,7 +86,7 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
   // Plain lyrics fallback
   return (
     <div className="lyrics-container lyrics-plain">
-      {lyrics.plain.split('\n').map((line, i) => (
+      {(lyrics.plain || '').split('\n').map((line, i) => (
         <div key={i} className={`lyrics-line ${!line.trim() ? 'lyrics-blank' : ''}`}>
           {line || '\u00A0'}
         </div>
@@ -148,16 +150,34 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   // Charger les paroles quand on active le mode paroles
   useEffect(() => {
     if (showLyrics && currentTrack && lyricsTrackUrl !== currentTrack.url) {
-      setLyricsLoading(true);
-      setLyrics(null);
+      let active = true;
+
+      // Planifier les mises à jour d'état de manière asynchrone pour éviter les rendus en cascade
+      Promise.resolve().then(() => {
+        if (active) {
+          setLyricsLoading(true);
+          setLyrics(null);
+        }
+      });
+
       fetch(`${API_URL}/api/guilds/${guildId}/lyrics`)
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          setLyrics(data);
-          setLyricsTrackUrl(currentTrack.url);
+          if (active) {
+            setLyrics(data);
+            setLyricsTrackUrl(currentTrack.url);
+          }
         })
-        .catch(() => setLyrics(null))
-        .finally(() => setLyricsLoading(false));
+        .catch(() => {
+          if (active) setLyrics(null);
+        })
+        .finally(() => {
+          if (active) setLyricsLoading(false);
+        });
+
+      return () => {
+        active = false;
+      };
     }
   }, [showLyrics, currentTrack, guildId, lyricsTrackUrl]);
 
