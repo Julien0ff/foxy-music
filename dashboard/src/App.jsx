@@ -227,9 +227,9 @@ function App() {
           <a href={OAUTH_URL} className="login-button">Se connecter avec Discord</a>
           
           <div style={{ marginTop: '20px', display: 'flex', gap: '16px', fontSize: '12px' }}>
-            <a href="/terms-of-service" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Conditions d'utilisation</a>
+            <a href="#/terms-of-service" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Conditions d'utilisation</a>
             <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>|</span>
-            <a href="/privacy-policy" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Politique de confidentialité</a>
+            <a href="#/privacy-policy" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Politique de confidentialité</a>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { Shield, Eye, Database, Share2, HelpCircle, ArrowLeft } from 'lucide-rea
 
 function PrivacyPolicy() {
   const handleGoHome = () => {
-    window.location.href = window.location.origin;
+    window.location.hash = '';
   };
 
   return (

@@ -2,7 +2,7 @@ import { ShieldAlert, BookOpen, UserCheck, Scale, AlertCircle, ArrowLeft } from 
 
 function TermsOfService() {
   const handleGoHome = () => {
-    window.location.href = window.location.origin;
+    window.location.hash = '';
   };
 
   return (
