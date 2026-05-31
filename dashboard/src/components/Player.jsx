@@ -21,10 +21,17 @@ function formatTime(ms) {
 export default function Player({ guildId, currentTrack, isPlaying, serverPosition, duration, volume, loop, setQueueState }) {
   const [localProgress, setLocalProgress] = useState(0);
   const [lastSyncPos, setLastSyncPos] = useState(serverPosition);
+  const [lastTrackUrl, setLastTrackUrl] = useState(currentTrack?.url);
 
   // Derive state from props during render (avoids cascading renders from useEffect)
   if (serverPosition !== lastSyncPos) {
     setLastSyncPos(serverPosition);
+    setLocalProgress(serverPosition || 0);
+  }
+
+  // Réinitialiser la barre de progression instantanément lors d'un changement de musique
+  if (currentTrack?.url !== lastTrackUrl) {
+    setLastTrackUrl(currentTrack?.url);
     setLocalProgress(serverPosition || 0);
   }
 
@@ -92,7 +99,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   };
 
-  const thumbnail = getYoutubeThumbnail(currentTrack?.url);
+  const thumbnail = currentTrack?.artworkUrl || getYoutubeThumbnail(currentTrack?.url);
   const progressPercent = duration > 0 ? Math.min(100, (localProgress / duration) * 100) : 0;
 
   return (
