@@ -6,6 +6,12 @@ const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
     {
+        name: 'Lavalink.rocks (Ultra Stable)',
+        url: 'free.lavalink.rocks:443',
+        auth: 'youshallnotpass',
+        secure: true
+    },
+    {
         name: 'Serenetia',
         url: 'lavalinkv4.serenetia.com:443',
         auth: 'https://seretia.link/discord',
@@ -15,12 +21,6 @@ const Nodes = [
         name: 'Jirayu',
         url: 'lavalink.jirayu.net:443',
         auth: 'youshallnotpass',
-        secure: true
-    },
-    {
-        name: 'MilloHost',
-        url: 'lava-v4.millohost.my.id:443',
-        auth: 'https://discord.gg/mjS5J2K3ep',
         secure: true
     },
     {
