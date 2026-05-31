@@ -22,6 +22,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const [localProgress, setLocalProgress] = useState(0);
   const [lastSyncPos, setLastSyncPos] = useState(serverPosition);
   const [lastTrackUrl, setLastTrackUrl] = useState(currentTrack?.url);
+  const [animateCover, setAnimateCover] = useState(false);
 
   // Derive state from props during render (avoids cascading renders from useEffect)
   if (serverPosition !== lastSyncPos) {
@@ -33,6 +34,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   if (currentTrack?.url !== lastTrackUrl) {
     setLastTrackUrl(currentTrack?.url);
     setLocalProgress(serverPosition || 0);
+    setAnimateCover(true);
   }
 
   // Local timer to keep the progress bar smooth without polling the server every second
@@ -48,6 +50,14 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
     return () => clearInterval(interval);
   }, [isPlaying, currentTrack, duration]);
+
+  // Réinitialiser l'animation de transition de couverture
+  useEffect(() => {
+    if (animateCover) {
+      const timer = setTimeout(() => setAnimateCover(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [animateCover]);
 
   const handlePauseResume = async () => {
     if (!currentTrack) return;
@@ -106,9 +116,9 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     <div className="player-container">
       <div className="artwork-wrapper">
         {thumbnail ? (
-          <img src={thumbnail} alt="Cover" className={`artwork ${currentTrack ? '' : 'idle'}`} />
+          <img src={thumbnail} alt="Cover" className={`artwork ${currentTrack ? '' : 'idle'} ${animateCover ? 'track-transition' : ''}`} />
         ) : (
-          <div className={`artwork ${currentTrack ? '' : 'idle'}`} style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className={`artwork ${currentTrack ? '' : 'idle'} ${animateCover ? 'track-transition' : ''}`} style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Music size={80} color="white" opacity={0.5} />
           </div>
         )}

@@ -41,6 +41,21 @@
   filter: grayscale(10%) blur(10px);
 }
 
+@keyframes trackChange {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.artwork.track-transition {
+  animation: trackChange 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
 .track-info {
   text-align: center;
   width: 100%;
@@ -95,7 +110,7 @@
   width: 0%;
   border-radius: 2px;
   position: relative;
-  transition: width 0.1s linear;
+  transition: width 0.05s linear;
 }
 
 .progress-container:hover {

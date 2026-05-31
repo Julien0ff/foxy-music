@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
 :root {
   --primary: #ff416c;
   --secondary: #ff4b2b;
@@ -12,7 +14,7 @@
   --radius-sm: 8px;
   --blur-strong: blur(80px);
   --blur-medium: blur(30px);
-  --transition: all 0.3s ease;
+  --transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 * {
@@ -52,6 +54,10 @@ body {
   min-height: 100vh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .track-title, .landing-content h1, .voice-channels h3, .queue-header {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 /* ========================================
@@ -457,7 +463,8 @@ body {
   background: transparent;
   border-radius: 4px;
   padding: 6px 8px;
-  transition: var(--transition);
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-left: 3px solid transparent;
 }
 
 .channel-item.can-connect {
@@ -465,16 +472,19 @@ body {
 }
 
 .channel-item.can-connect:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid rgba(255, 255, 255, 0.25);
+  padding-left: 5px;
 }
 
 .channel-item.can-connect:active {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .channel-item.bot-active {
-  border-left: 2px solid var(--primary);
-  background: rgba(255, 65, 108, 0.06);
+  border-left: 3px solid var(--primary);
+  background: rgba(255, 65, 108, 0.08);
+  padding-left: 5px;
 }
 
 .channel-header {
