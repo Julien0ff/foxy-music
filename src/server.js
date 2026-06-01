@@ -8,7 +8,32 @@ const { fetchLyrics } = require('./utils/lyrics');
 
 function startServer(client) {
     const app = express();
-    const server = http.createServer(app);
+    
+    // Support SSL directly in Node.js
+    const https = require('https');
+    const fs = require('fs');
+    const path = require('path');
+    
+    let server;
+    const keyPath = path.join(__dirname, '../server.key');
+    const certPath = path.join(__dirname, '../server.cert');
+    const hasSSL = fs.existsSync(keyPath) && fs.existsSync(certPath);
+    
+    if (hasSSL) {
+        try {
+            const privateKey = fs.readFileSync(keyPath, 'utf8');
+            const certificate = fs.readFileSync(certPath, 'utf8');
+            server = https.createServer({ key: privateKey, cert: certificate }, app);
+            console.log('🔒 HTTPS activé avec les certificats locaux.');
+        } catch (err) {
+            console.error('❌ Échec de la configuration HTTPS, repli sur HTTP:', err);
+            server = http.createServer(app);
+        }
+    } else {
+        server = http.createServer(app);
+        console.log('🔓 HTTP simple activé (aucun certificat server.key / server.cert trouvé à la racine).');
+    }
+
     const io = new Server(server, {
         cors: {
             origin: '*', // To be restricted to Vercel domain later
