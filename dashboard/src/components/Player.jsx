@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, SkipForward, Music, Repeat, Mic, MicOff } from 'lucide-react';
+import { Play, Pause, SkipForward, Music, Repeat, Mic, MicOff, Search, Loader2 } from 'lucide-react';
 import { API_URL } from '../config';
 
 // Helper to extract YouTube video ID
@@ -188,7 +188,7 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
   );
 }
 
-export default function Player({ guildId, currentTrack, isPlaying, serverPosition, duration, volume, loop, setQueueState, onLyricsToggle }) {
+export default function Player({ guildId, currentTrack, isPlaying, serverPosition, duration, volume, loop, setQueueState, onLyricsToggle, tracks }) {
   const [localProgress, setLocalProgress] = useState(0);
   const [lastSyncPos, setLastSyncPos] = useState(serverPosition);
   const [lastTrackUrl, setLastTrackUrl] = useState(currentTrack?.url);
@@ -199,6 +199,56 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const [lyrics, setLyrics] = useState(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsTrackUrl, setLyricsTrackUrl] = useState(null);
+
+  // Expandable Search in Lyrics state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchInputRef = useRef(null);
+
+  const handleSearchSubmit = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/guilds/${guildId}/play`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query: searchQuery.trim() })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSearchQuery('');
+        setSearchExpanded(false);
+      } else {
+        alert(data.error || 'Erreur lors de la recherche');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erreur réseau');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const toggleSearch = () => {
+    if (searchExpanded) {
+      if (searchQuery.trim()) {
+        handleSearchSubmit();
+      } else {
+        setSearchExpanded(false);
+      }
+    } else {
+      setSearchExpanded(true);
+      setTimeout(() => {
+        if (searchInputRef.current) searchInputRef.current.focus();
+      }, 50);
+    }
+  };
 
   // Derive state from props during render (avoids cascading renders from useEffect)
   if (serverPosition !== lastSyncPos) {
@@ -421,12 +471,44 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
       {/* Right side: Lyrics Panel */}
       {showLyrics && (
         <div className="lyrics-panel">
-          {lyrics && (
-            <div className="lyrics-panel-header">
-              <span className="lyrics-panel-track">{lyrics.title}</span>
-              {lyrics.artist && <span className="lyrics-panel-artist">{lyrics.artist}</span>}
+          <div className="lyrics-top-bar">
+            {lyrics ? (
+              <div className="lyrics-panel-header">
+                <span className="lyrics-panel-track">{lyrics.title}</span>
+                {lyrics.artist && <span className="lyrics-panel-artist">{lyrics.artist}</span>}
+              </div>
+            ) : (
+              <div className="lyrics-panel-header-empty" />
+            )}
+
+            <div className="lyrics-top-controls">
+              {/* Expandable Search Button */}
+              <div className={`lyrics-search-wrapper ${searchExpanded ? 'expanded' : ''}`}>
+                <form onSubmit={handleSearchSubmit} className="lyrics-search-form">
+                  <input
+                    type="text"
+                    placeholder="Rechercher ou coller un lien..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    disabled={searchLoading}
+                    className="lyrics-search-input"
+                    ref={searchInputRef}
+                  />
+                  <button type="button" onClick={toggleSearch} className="lyrics-search-btn" disabled={searchLoading}>
+                    {searchLoading ? <Loader2 size={18} className="search-spinner" /> : <Search size={18} />}
+                  </button>
+                </form>
+              </div>
+
+              {/* Next Track in Queue */}
+              {tracks && tracks[0] && (
+                <div className="lyrics-next-track" title={`Suivant : ${tracks[0].title}`}>
+                  <span className="next-label">SUIVANT</span>
+                  <span className="next-title">{tracks[0].title}</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
           <LyricsView
             lyrics={lyrics}
             currentTimeMs={localProgress}

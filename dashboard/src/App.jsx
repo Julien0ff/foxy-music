@@ -322,6 +322,7 @@ function App() {
                     loop={queueState.loop}
                     setQueueState={setQueueState}
                     onLyricsToggle={setLyricsMode}
+                    tracks={queueState.tracks}
                   />
                 </div>
               </div>

@@ -210,4 +210,38 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
+// Global error logging
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    shutdown();
+});
+
+client.on('error', (error) => {
+    console.error('❌ Discord Client Error:', error);
+});
+
+// Graceful shutdown
+const shutdown = async () => {
+    console.log('🦊 Stopping bot gracefully...');
+    try {
+        if (client.shoukaku) {
+            // Disconnect all players
+            for (const [guildId, player] of client.shoukaku.players.entries()) {
+                await client.shoukaku.leaveVoiceChannel(guildId);
+            }
+        }
+    } catch (e) {
+        console.error('Error leaving voice channels:', e);
+    }
+    client.destroy();
+    process.exit(0);
+};
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 client.login(process.env.DISCORD_TOKEN);
