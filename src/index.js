@@ -24,10 +24,16 @@ const Nodes = [
         secure: false
     },
     {
-        name: 'TriniumHost',
-        url: 'lavalink-v4.triniumhost.com:443',
-        auth: 'free',
-        secure: true
+        name: 'G3V',
+        url: 'lava.g3v.co.uk:9008',
+        auth: 'lavalinklol',
+        secure: false
+    },
+    {
+        name: 'Vexanode',
+        url: 'omega.vexanode.cloud:2031',
+        auth: 'https://discord.vexanode.cloud',
+        secure: false
     }
 ];
 const fs = require('fs');
