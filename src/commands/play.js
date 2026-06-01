@@ -164,6 +164,10 @@ module.exports = {
                 queue.player = player;
             } else {
                 try {
+                    try {
+                        await interaction.client.shoukaku.leaveVoiceChannel(interaction.guild.id);
+                    } catch (_) {}
+
                     player = await interaction.client.shoukaku.joinVoiceChannel({
                         guildId: interaction.guild.id,
                         channelId: channel.id,

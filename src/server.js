@@ -137,6 +137,10 @@ function startServer(client) {
 
         try {
             if (!queue.player) {
+                try {
+                    await client.shoukaku.leaveVoiceChannel(guildId);
+                } catch (_) {}
+
                 const player = await client.shoukaku.joinVoiceChannel({
                     guildId: guildId,
                     channelId: channelId,
@@ -349,6 +353,10 @@ function startServer(client) {
 
                         if (targetChannel) {
                             try {
+                                try {
+                                    await client.shoukaku.leaveVoiceChannel(guildId);
+                                } catch (_) {}
+
                                 player = await client.shoukaku.joinVoiceChannel({
                                     guildId: guildId,
                                     channelId: targetChannel.id,
