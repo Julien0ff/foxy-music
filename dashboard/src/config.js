@@ -2,5 +2,5 @@
 // Remplacez 'ID_SERVEUR' par votre identifiant numérique de serveur Bot-Hosting (ex: 12345)
 // ou utilisez votre sous-domaine personnalisé (ex: https://api.foxymusic.lunaverse.fr) une fois configuré.
 export const API_URL = import.meta.env.PROD
-  ? 'https://603508.site.bot-hosting.cloud'
+  ? 'https://api.foxymusic.lunaverse.fr'
   : window.location.origin;
