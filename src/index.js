@@ -30,10 +30,10 @@ const Nodes = [
         secure: false
     },
     {
-        name: 'Vexanode',
-        url: 'omega.vexanode.cloud:2031',
-        auth: 'https://discord.vexanode.cloud',
-        secure: false
+        name: 'MilloHost',
+        url: 'lava-v4.millohost.my.id:443',
+        auth: 'https://discord.gg/mjS5J2K3ep',
+        secure: true
     }
 ];
 const fs = require('fs');
