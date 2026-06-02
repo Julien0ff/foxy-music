@@ -27,6 +27,7 @@ async function playNext(guildId, client) {
     if (queue.tracks.length === 0) {
         queue.currentTrack = null;
         if (queue.player) {
+            console.log(`[Player] Queue is empty. Leaving voice channel for guild: ${guildId}`);
             client.shoukaku.leaveVoiceChannel(guildId);
             queue.player = null;
         }
@@ -61,6 +62,68 @@ async function playNext(guildId, client) {
         console.error('[Play Error]', err.message);
         return playNext(guildId, client);
     }
+}
+
+async function handleLoadFailed(guildId, client, failedTrack) {
+    const queue = getQueue(guildId);
+    if (!queue || !queue.player || !failedTrack) return playNext(guildId, client);
+
+    // Prevent infinite loop if the fallback itself fails
+    if (failedTrack.isFallback) {
+        console.warn(`[Player] Fallback track failed to load as well: ${failedTrack.title}`);
+        return playNext(guildId, client);
+    }
+
+    console.log(`[Player Fallback] Track "${failedTrack.title}" failed to load. Attempting SoundCloud fallback...`);
+
+    try {
+        const nodes = Array.from(client.shoukaku.nodes.values());
+        const searchQuery = `scsearch:${failedTrack.title}`;
+        
+        let result = null;
+        let resolvedNode = null;
+        for (const node of nodes) {
+            try {
+                result = await node.rest.resolve(searchQuery);
+                if (result && result.loadType === 'search' && result.data && result.data.length > 0) {
+                    resolvedNode = node;
+                    break;
+                }
+            } catch (err) {
+                console.log(`[Fallback Node Error] Node ${node.name} failed resolving fallback:`, err.message);
+            }
+        }
+
+        if (result && result.loadType === 'search' && result.data && result.data.length > 0) {
+            const fallbackTrack = result.data[0];
+            const newTrackInfo = {
+                title: fallbackTrack.info.title,
+                url: fallbackTrack.info.uri,
+                encoded: fallbackTrack.encoded,
+                duration: fallbackTrack.info.length,
+                artworkUrl: fallbackTrack.info.artworkUrl || failedTrack.artworkUrl,
+                nodeName: resolvedNode.name,
+                isFallback: true
+            };
+
+            queue.currentTrack = newTrackInfo;
+            console.log(`[Player Fallback] Successfully resolved SoundCloud fallback: ${newTrackInfo.title}`);
+            
+            if (newTrackInfo.encoded) {
+                await queue.player.playTrack({ track: { encoded: newTrackInfo.encoded } });
+            } else {
+                await queue.player.playTrack({ track: { identifier: newTrackInfo.url } });
+            }
+            updatePanel(client, guildId);
+            return;
+        }
+    } catch (e) {
+        console.error('[Player Fallback Error]', e.message);
+    }
+
+    // If fallback fails to resolve or play, move to next song
+    console.log('[Player Fallback] SoundCloud fallback failed. Moving to next track.');
+    playNext(guildId, client);
 }
 
 // --- Spotify / Apple Music helpers ---
@@ -133,7 +196,8 @@ module.exports = {
         .addStringOption(option =>
             option.setName('query')
                 .setDescription('The song URL or search query')
-                .setRequired(true)),
+                .setRequired(true)
+                .setAutocomplete(true)),
 
     async execute(interaction) {
         const channel = interaction.member.voice.channel;
@@ -166,11 +230,26 @@ module.exports = {
                     queue.player = player;
 
                     player.on('start', () => {
+                        console.log(`[Player] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
                         updatePanel(interaction.client, interaction.guild.id);
                     });
 
                     player.on('end', (reason) => {
+                        console.log(`[Player] Track ended. Reason: ${reason.reason}`);
                         if (reason.reason === 'REPLACED') return;
+                        if (reason.reason === 'loadFailed') {
+                            handleLoadFailed(interaction.guild.id, interaction.client, queue.currentTrack);
+                        } else {
+                            playNext(interaction.guild.id, interaction.client);
+                        }
+                    });
+
+                    player.on('exception', (exception) => {
+                        console.error('[Player Exception]', exception.exception?.message || exception.exception || exception);
+                    });
+
+                    player.on('stuck', (stuck) => {
+                        console.warn('[Player Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
                         playNext(interaction.guild.id, interaction.client);
                     });
 
@@ -197,7 +276,7 @@ module.exports = {
                                     for (const node of nodes) {
                                         let finalQuery = nextTrack.url || nextTrack.query;
                                         if (nextTrack.isImported) {
-                                            finalQuery = `ytsearch:${nextTrack.title} ${nextTrack.artist || ''}`;
+                                            finalQuery = `scsearch:${nextTrack.title} ${nextTrack.artist || ''}`;
                                         }
                                         const result = await node.rest.resolve(finalQuery);
                                         if (result && result.data) {
@@ -247,17 +326,17 @@ module.exports = {
             let finalQuery = query;
             if (isSpotifyUrl(query)) {
                 const title = await getSpotifyTrackName(query);
-                if (title) finalQuery = `ytsearch:${title}`;
+                if (title) finalQuery = `scsearch:${title}`;
             } else if (isAppleMusicUrl(query)) {
                 const title = await getAppleMusicTrackName(query);
-                if (title) finalQuery = `ytsearch:${title}`;
+                if (title) finalQuery = `scsearch:${title}`;
             } else if (isDeezerUrl(query)) {
                 const title = await getDeezerTrackName(query);
-                if (title) finalQuery = `ytsearch:${title}`;
+                if (title) finalQuery = `scsearch:${title}`;
             } else if (!isYouTubeUrl(query) && !isSoundCloudUrl(query) && !query.startsWith('http')) {
-                finalQuery = `ytsearch:${query}`;
+                finalQuery = `scsearch:${query}`;
             }
-
+            
             let result = null;
             let resolvedNode = null;
             for (const node of orderedNodes) {
@@ -353,5 +432,45 @@ module.exports = {
             return interaction.followUp(`❌ Something went wrong: ${e.message}`);
         }
     },
-    playNext: playNext
+    async autocomplete(interaction) {
+        const focusedValue = interaction.options.getFocused();
+        if (!focusedValue || !focusedValue.trim() || focusedValue.startsWith('http')) {
+            try {
+                return await interaction.respond([]);
+            } catch (_) {}
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `https://itunes.apple.com/search?term=${encodeURIComponent(focusedValue)}&media=music&limit=10&entity=song`
+            );
+            if (response.ok) {
+                const data = await response.json();
+                const results = data.results || [];
+                const choices = results.map(track => {
+                    const name = `${track.trackName} - ${track.artistName}`;
+                    const displayName = name.length > 100 ? name.substring(0, 97) + '...' : name;
+                    return {
+                        name: displayName,
+                        value: `${track.trackName} ${track.artistName}`
+                    };
+                });
+                try {
+                    await interaction.respond(choices);
+                } catch (_) {}
+            } else {
+                try {
+                    await interaction.respond([]);
+                } catch (_) {}
+            }
+        } catch (error) {
+            console.error('[Autocomplete Error]', error);
+            try {
+                await interaction.respond([]);
+            } catch (_) {}
+        }
+    },
+    playNext: playNext,
+    handleLoadFailed: handleLoadFailed
 };

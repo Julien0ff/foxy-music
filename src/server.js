@@ -150,17 +150,33 @@ function startServer(client) {
                 queue.player = player;
                 
                 player.on('start', () => {
+                    console.log(`[Player Web API] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
                     updatePanel(client, guildId);
                 });
 
                 player.on('end', (reason) => {
+                    console.log(`[Player Web API] Track ended. Reason: ${reason.reason}`);
                     if (reason.reason === 'REPLACED') return;
+                    const command = client.commands.get('play');
+                    if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
+                        command.handleLoadFailed(guildId, client, queue.currentTrack);
+                    } else if (command && command.playNext) {
+                        command.playNext(guildId, client);
+                    }
+                });
+
+                player.on('exception', (exception) => {
+                    console.error('[Player Web API Exception]', exception.exception?.message || exception.exception || exception);
+                });
+
+                player.on('stuck', (stuck) => {
+                    console.warn('[Player Web API Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
                     const command = client.commands.get('play');
                     if (command && command.playNext) command.playNext(guildId, client);
                 });
                 
                 player.on('error', (error) => {
-                    console.error('[Player Error]', error);
+                    console.error('[Player Web API Error]', error);
                     const command = client.commands.get('play');
                     if (command && command.playNext) command.playNext(guildId, client);
                 });
@@ -266,15 +282,15 @@ function startServer(client) {
             let finalQuery = query;
             if (query.includes('open.spotify.com') || query.includes('spotify.link')) {
                 const title = await getSpotifyTrackName(query);
-                if (title) finalQuery = `ytsearch:${title}`;
+                if (title) finalQuery = `scsearch:${title}`;
             } else if (query.includes('music.apple.com')) {
                 const title = await getAppleMusicTrackName(query);
-                if (title) finalQuery = `ytsearch:${title}`;
+                if (title) finalQuery = `scsearch:${title}`;
             } else if (query.includes('deezer.com') || query.includes('deezer.page.link')) {
                 const title = await getDeezerTrackName(query);
-                if (title) finalQuery = `ytsearch:${title}`;
+                if (title) finalQuery = `scsearch:${title}`;
             } else if (!query.includes('youtube.com/watch') && !query.includes('youtu.be/') && !query.includes('soundcloud.com/') && !query.startsWith('http')) {
-                finalQuery = `ytsearch:${query}`;
+                finalQuery = `scsearch:${query}`;
             }
 
             // Prioritize the player's own node to avoid track decode mismatches
@@ -366,17 +382,33 @@ function startServer(client) {
                                 queue.player = player;
                                 
                                 player.on('start', () => {
+                                    console.log(`[Player Web API Auto] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
                                     updatePanel(client, guildId);
                                 });
 
                                 player.on('end', (reason) => {
+                                    console.log(`[Player Web API Auto] Track ended. Reason: ${reason.reason}`);
                                     if (reason.reason === 'REPLACED') return;
+                                    const command = client.commands.get('play');
+                                    if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
+                                        command.handleLoadFailed(guildId, client, queue.currentTrack);
+                                    } else if (command && command.playNext) {
+                                        command.playNext(guildId, client);
+                                    }
+                                });
+
+                                player.on('exception', (exception) => {
+                                    console.error('[Player Web API Auto Exception]', exception.exception?.message || exception.exception || exception);
+                                });
+
+                                player.on('stuck', (stuck) => {
+                                    console.warn('[Player Web API Auto Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
                                     const command = client.commands.get('play');
                                     if (command && command.playNext) command.playNext(guildId, client);
                                 });
                                 
                                 player.on('error', (error) => {
-                                    console.error('[Player Error]', error);
+                                    console.error('[Player Web API Auto Error]', error);
                                     const command = client.commands.get('play');
                                     if (command && command.playNext) command.playNext(guildId, client);
                                 });
@@ -527,14 +559,30 @@ function startServer(client) {
                                 });
                                 queue.player = player;
                                 
-                                player.on('start', () => updatePanel(client, guildId));
+                                player.on('start', () => {
+                                    console.log(`[Player Web API Import] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
+                                    updatePanel(client, guildId);
+                                });
                                 player.on('end', (reason) => {
+                                    console.log(`[Player Web API Import] Track ended. Reason: ${reason.reason}`);
                                     if (reason.reason === 'REPLACED') return;
+                                    const command = client.commands.get('play');
+                                    if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
+                                        command.handleLoadFailed(guildId, client, queue.currentTrack);
+                                    } else if (command && command.playNext) {
+                                        command.playNext(guildId, client);
+                                    }
+                                });
+                                player.on('exception', (exception) => {
+                                    console.error('[Player Web API Import Exception]', exception.exception?.message || exception.exception || exception);
+                                });
+                                player.on('stuck', (stuck) => {
+                                    console.warn('[Player Web API Import Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
                                     const command = client.commands.get('play');
                                     if (command && command.playNext) command.playNext(guildId, client);
                                 });
                                 player.on('error', (err) => {
-                                    console.error('[Player Error]', err);
+                                    console.error('[Player Web API Import Error]', err);
                                     const command = client.commands.get('play');
                                     if (command && command.playNext) command.playNext(guildId, client);
                                 });
