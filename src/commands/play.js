@@ -186,6 +186,16 @@ async function getDeezerTrackName(url) {
         return null;
     }
 }
+async function getYouTubeVideoTitle(url) {
+    try {
+        const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.title || null;
+    } catch {
+        return null;
+    }
+}
 
 // --- Main command ---
 
@@ -324,27 +334,49 @@ module.exports = {
 
         try {
             let finalQuery = query;
+            let shouldForceFinalQuery = false;
+            
             if (isSpotifyUrl(query)) {
                 const title = await getSpotifyTrackName(query);
-                if (title) finalQuery = `scsearch:${title}`;
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
             } else if (isAppleMusicUrl(query)) {
                 const title = await getAppleMusicTrackName(query);
-                if (title) finalQuery = `scsearch:${title}`;
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
             } else if (isDeezerUrl(query)) {
                 const title = await getDeezerTrackName(query);
-                if (title) finalQuery = `scsearch:${title}`;
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
+            } else if (isYouTubeUrl(query) && !query.includes('playlist')) {
+                const title = await getYouTubeVideoTitle(query);
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
             } else if (!isYouTubeUrl(query) && !isSoundCloudUrl(query) && !query.startsWith('http')) {
                 finalQuery = `scsearch:${query}`;
+                shouldForceFinalQuery = true;
             }
             
             let result = null;
             let resolvedNode = null;
             for (const node of orderedNodes) {
                 try {
-                    result = await node.rest.resolve(query);
-                    if (!result || result.loadType === 'empty' || result.loadType === 'error') {
-                        if (finalQuery !== query) {
-                            result = await node.rest.resolve(finalQuery);
+                    if (shouldForceFinalQuery) {
+                        result = await node.rest.resolve(finalQuery);
+                    } else {
+                        result = await node.rest.resolve(query);
+                        if (!result || result.loadType === 'empty' || result.loadType === 'error') {
+                            if (finalQuery !== query) {
+                                result = await node.rest.resolve(finalQuery);
+                            }
                         }
                     }
                     if (result && result.loadType !== 'empty' && result.loadType !== 'error') {

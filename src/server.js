@@ -278,19 +278,40 @@ function startServer(client) {
             const getDeezerTrackName = async (url) => {
                 try { const res = await fetch(`https://deezer.com/oembed?url=${encodeURIComponent(url)}`); return res.ok ? (await res.json()).title : null; } catch { return null; }
             };
+            const getYouTubeVideoTitle = async (url) => {
+                try { const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`); return res.ok ? (await res.json()).title : null; } catch { return null; }
+            };
 
             let finalQuery = query;
+            let shouldForceFinalQuery = false;
+            
             if (query.includes('open.spotify.com') || query.includes('spotify.link')) {
                 const title = await getSpotifyTrackName(query);
-                if (title) finalQuery = `scsearch:${title}`;
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
             } else if (query.includes('music.apple.com')) {
                 const title = await getAppleMusicTrackName(query);
-                if (title) finalQuery = `scsearch:${title}`;
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
             } else if (query.includes('deezer.com') || query.includes('deezer.page.link')) {
                 const title = await getDeezerTrackName(query);
-                if (title) finalQuery = `scsearch:${title}`;
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
+            } else if ((query.includes('youtube.com/watch') || query.includes('youtu.be/')) && !query.includes('playlist')) {
+                const title = await getYouTubeVideoTitle(query);
+                if (title) {
+                    finalQuery = `scsearch:${title}`;
+                    shouldForceFinalQuery = true;
+                }
             } else if (!query.includes('youtube.com/watch') && !query.includes('youtu.be/') && !query.includes('soundcloud.com/') && !query.startsWith('http')) {
                 finalQuery = `scsearch:${query}`;
+                shouldForceFinalQuery = true;
             }
 
             // Prioritize the player's own node to avoid track decode mismatches
@@ -306,14 +327,18 @@ function startServer(client) {
             let resolvedNode = null;
             for (const node of orderedNodes) {
                 try {
-                    let tempResult = await node.rest.resolve(query);
-                    if (!tempResult || tempResult.loadType === 'empty' || tempResult.loadType === 'error') {
-                        if (finalQuery !== query) {
-                            tempResult = await node.rest.resolve(finalQuery);
+                    if (shouldForceFinalQuery) {
+                        result = await node.rest.resolve(finalQuery);
+                    } else {
+                        let tempResult = await node.rest.resolve(query);
+                        if (!tempResult || tempResult.loadType === 'empty' || tempResult.loadType === 'error') {
+                            if (finalQuery !== query) {
+                                tempResult = await node.rest.resolve(finalQuery);
+                            }
                         }
-                    }
-                    if (tempResult && tempResult.loadType !== 'empty' && tempResult.loadType !== 'error') {
                         result = tempResult;
+                    }
+                    if (result && result.loadType !== 'empty' && result.loadType !== 'error') {
                         resolvedNode = node;
                         break;
                     }

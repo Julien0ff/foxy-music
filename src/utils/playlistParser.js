@@ -15,6 +15,16 @@ class PlaylistParser {
         if (!match) throw new Error('Format de lien Spotify invalide.');
         const playlistId = match[1];
 
+        // Use official Spotify Web API if credentials are provided in env
+        if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) {
+            console.log('[PlaylistParser] Spotify credentials found. Using official Web API...');
+            try {
+                return await this.parseSpotifyOfficial(playlistId);
+            } catch (err) {
+                console.error('[PlaylistParser] Official Spotify API failed, falling back to scraper:', err.message);
+            }
+        }
+
         const embedUrl = `https://open.spotify.com/embed/playlist/${playlistId}`;
         console.log(`[PlaylistParser] Fetching Spotify embed: ${embedUrl}`);
 
@@ -163,6 +173,85 @@ class PlaylistParser {
         }
 
         console.log(`[PlaylistParser] Spotify playlist "${playlistName}" parsed with ${tracks.length} tracks.`);
+        return { name: playlistName, tracks };
+    }
+
+    /**
+     * Parse a Spotify playlist using the official Web API
+     */
+    static async parseSpotifyOfficial(playlistId) {
+        const clientId = process.env.SPOTIFY_CLIENT_ID;
+        const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+        
+        // 1. Get Client Credentials token
+        const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
+            },
+            body: 'grant_type=client_credentials'
+        });
+
+        if (!tokenRes.ok) {
+            throw new Error(`Failed to get Spotify access token (status: ${tokenRes.status})`);
+        }
+
+        const tokenData = await tokenRes.json();
+        const accessToken = tokenData.access_token;
+
+        // 2. Fetch playlist details (with track paging)
+        let tracks = [];
+        let playlistName = 'Spotify Playlist';
+        let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}`;
+
+        // Retrieve the playlist name first
+        const playlistRes = await fetch(nextUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        if (!playlistRes.ok) {
+            throw new Error(`Spotify API returned status ${playlistRes.status} for playlist fetch`);
+        }
+
+        const playlistData = await playlistRes.json();
+        playlistName = playlistData.name || playlistName;
+
+        // Paging tracks loop to get all songs (Spotify returns 100 tracks max per page)
+        let tracksPage = playlistData.tracks;
+        while (tracksPage) {
+            const items = tracksPage.items || [];
+            for (const item of items) {
+                const t = item.track;
+                if (!t || !t.name) continue;
+                tracks.push({
+                    title: t.name,
+                    artist: t.artists ? t.artists.map(a => a.name).join(', ') : 'Unknown Artist',
+                    duration: t.duration_ms || 0,
+                    artworkUrl: t.album?.images?.[0]?.url || null,
+                    isImported: true
+                });
+            }
+            
+            if (tracksPage.next) {
+                const nextPageRes = await fetch(tracksPage.next, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (nextPageRes.ok) {
+                    tracksPage = await nextPageRes.json();
+                } else {
+                    tracksPage = null;
+                }
+            } else {
+                tracksPage = null;
+            }
+        }
+
+        if (tracks.length === 0) {
+            throw new Error('No tracks found in the Spotify playlist via Web API');
+        }
+
+        console.log(`[PlaylistParser] Spotify playlist "${playlistName}" parsed via Web API with ${tracks.length} tracks.`);
         return { name: playlistName, tracks };
     }
 
