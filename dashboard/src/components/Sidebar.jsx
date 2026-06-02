@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { Settings, LogOut } from 'lucide-react';
 
-export default function Sidebar({ guilds, selectedGuildId, onSelectGuild, botAvatar, user, onLogout }) {
+export default function Sidebar({ guilds, selectedGuildId, onSelectGuild, botAvatar, user, onLogout, onOpenSettings }) {
   const [showUserPopup, setShowUserPopup] = useState(false);
   const defaultAvatar = 'https://cdn.discordapp.com/embed/avatars/0.png';
   const avatarUrl = botAvatar || defaultAvatar;
@@ -53,8 +54,25 @@ export default function Sidebar({ guilds, selectedGuildId, onSelectGuild, botAva
                   <span className="popup-tag">@{user.username}</span>
                 </div>
               </div>
-              <button className="popup-logout" onClick={onLogout}>
-                Déconnexion
+              <button 
+                className="popup-settings" 
+                onClick={() => {
+                  setShowUserPopup(false);
+                  onOpenSettings();
+                }}
+              >
+                <Settings size={16} className="popup-settings-icon" />
+                <span>Paramètres</span>
+              </button>
+              <button 
+                className="popup-logout" 
+                onClick={() => {
+                  setShowUserPopup(false);
+                  onLogout();
+                }}
+              >
+                <LogOut size={16} className="popup-logout-icon" />
+                <span>Déconnexion</span>
               </button>
             </div>
           )}
@@ -63,3 +81,4 @@ export default function Sidebar({ guilds, selectedGuildId, onSelectGuild, botAva
     </div>
   );
 }
+

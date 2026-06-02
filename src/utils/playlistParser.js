@@ -103,6 +103,61 @@ class PlaylistParser {
             }
         }
 
+        // 4. Fallback d'extraction d'urgence par expression régulière des balises HTML directes
+        if (tracks.length === 0) {
+            console.log('[PlaylistParser] Using HTML tags regex fallback parser for Spotify embed...');
+            
+            // Extraction du nom de la playlist
+            const playlistNameMatch = html.match(/class="[^"]*CondensedMetadata_title[^"]*"[^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>/i) ||
+                                      html.match(/class="[^"]*CondensedMetadata_title[^"]*"[^>]*>[\s\S]*?([^<]+)<\/span>/i) ||
+                                      html.match(/class="[^"]*CondensedMetadata_title[^"]*"[^>]*>([^<]+)/i);
+            if (playlistNameMatch) {
+                playlistName = playlistNameMatch[1].trim();
+            } else {
+                const fallbackTitleMatch = html.match(/CondensedMetadata_title[^>]*>([\s\S]*?)<\/div>/i);
+                if (fallbackTitleMatch) {
+                    const stripped = fallbackTitleMatch[1].replace(/<[^>]*>/g, '').trim();
+                    if (stripped) playlistName = stripped;
+                }
+            }
+
+            // Découpage par ligne de file d'attente (TracklistRow)
+            const rowSplit = html.split(/class="[^"]*TracklistRow_trackListRow[^"]*"/gi);
+            if (rowSplit.length > 1) {
+                for (let i = 1; i < rowSplit.length; i++) {
+                    const rowHtml = rowSplit[i].split(/<li/i)[0]; // Isole la ligne courante
+                    
+                    const titleMatch = rowHtml.match(/class="[^"]*TracklistRow_title[^"]*"[^>]*>([\s\S]*?)<\/(?:h3|span|div)>/i);
+                    const artistMatch = rowHtml.match(/class="[^"]*TracklistRow_subtitle[^"]*"[^>]*>([\s\S]*?)<\/(?:h4|span|div)>/i);
+                    const durationMatch = rowHtml.match(/class="[^"]*TracklistRow_durationCell[^"]*"[^>]*>([\s\S]*?)<\/(?:div|span)>/i);
+
+                    if (titleMatch) {
+                        const title = titleMatch[1].replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim();
+                        const artist = artistMatch ? artistMatch[1].replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').trim() : 'Unknown Artist';
+                        
+                        let durationMs = 180000;
+                        if (durationMatch) {
+                            const durStr = durationMatch[1].replace(/<[^>]*>/g, '').trim();
+                            const parts = durStr.split(':');
+                            if (parts.length === 2) {
+                                durationMs = (parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10)) * 1000;
+                            } else if (parts.length === 3) {
+                                durationMs = (parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10)) * 1000;
+                            }
+                        }
+
+                        tracks.push({
+                            title,
+                            artist,
+                            duration: durationMs,
+                            artworkUrl: null,
+                            isImported: true
+                        });
+                    }
+                }
+            }
+        }
+
         if (tracks.length === 0) {
             throw new Error('Aucune piste n\'a pu être extraite de la playlist Spotify publique.');
         }

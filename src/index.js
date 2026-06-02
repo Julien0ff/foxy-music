@@ -42,12 +42,6 @@ const Nodes = [
         secure: false
     },
     {
-        name: 'VexaNode-2031',
-        url: 'omega.vexanode.cloud:2031',
-        auth: 'https://discord.vexanode.cloud',
-        secure: false
-    },
-    {
         name: 'Serenetia-SSL',
         url: 'lavalinkv4.serenetia.com:443',
         auth: 'https://seretia.link/discord',
@@ -103,6 +97,7 @@ if (fs.existsSync(commandsPath)) {
     for (const file of commandFiles) {
         const filePath = path.join(commandsPath, file);
         const command = require(filePath);
+        if (command.disabled) continue;
         if ('data' in command && 'execute' in command) {
             client.commands.set(command.data.name, command);
         } else {

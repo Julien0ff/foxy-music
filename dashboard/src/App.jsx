@@ -5,7 +5,7 @@ import QueueList from './components/QueueList';
 import SearchBar from './components/SearchBar';
 import Sidebar from './components/Sidebar';
 import VoiceChannels from './components/VoiceChannels';
-import { Music, Plus, X, Loader2 } from 'lucide-react';
+import { Music, X, Loader2, Settings } from 'lucide-react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import './App.css';
 import { API_URL } from './config';
@@ -73,8 +73,8 @@ function App() {
   const [selectedGuildId, setSelectedGuildId] = useState(null);
   const [lyricsMode, setLyricsMode] = useState(false);
   
-  // Playlist Import States
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // Settings and Playlist Import States
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
 
@@ -295,7 +295,7 @@ function App() {
       if (data.success) {
         alert(`Playlist "${data.name}" importée avec succès (${data.count} morceaux ajoutés au bot) !`);
         setPlaylistUrl('');
-        setIsImportModalOpen(false);
+        setIsSettingsOpen(false);
       } else {
         alert(data.error || 'Erreur lors de l\'importation');
       }
@@ -361,6 +361,7 @@ function App() {
         botAvatar={botInfo?.avatar}
         user={user}
         onLogout={handleLogout}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <div className="main-wrapper">
@@ -376,15 +377,8 @@ function App() {
               
               <div className={`center-column ${lyricsMode ? 'lyrics-center' : ''}`}>
                 {!lyricsMode && (
-                  <div className="search-wrapper" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div className="search-wrapper">
                     <SearchBar guildId={selectedGuildId} />
-                    <button 
-                      onClick={() => setIsImportModalOpen(true)}
-                      className="playlist-import-trigger"
-                      title="Importer une playlist (Spotify, Apple Music)"
-                    >
-                      <Plus size={20} />
-                    </button>
                   </div>
                 )}
                 <div className={`player-wrapper ${lyricsMode ? 'lyrics-player-wrapper' : ''}`}>
@@ -421,41 +415,51 @@ function App() {
         </main>
       </div>
 
-      {/* Playlist Import Overlay Modal */}
-      {isImportModalOpen && (
-        <div className="playlist-import-modal" onClick={() => setIsImportModalOpen(false)}>
-          <div className="playlist-import-card" onClick={(e) => e.stopPropagation()}>
-            <div className="playlist-import-header">
-              <span className="playlist-import-title">Importer une playlist</span>
-              <button className="playlist-import-close" onClick={() => setIsImportModalOpen(false)}>
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="settings-modal" onClick={() => setIsSettingsOpen(false)}>
+          <div className="settings-card" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-header">
+              <div className="settings-title-group">
+                <Settings size={20} className="settings-title-icon" />
+                <span className="settings-title">Paramètres</span>
+              </div>
+              <button className="settings-close" onClick={() => setIsSettingsOpen(false)}>
                 <X size={20} />
               </button>
             </div>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-              Collez un lien de playlist publique **Spotify** ou **Apple Music** pour l'importer instantanément dans le bot Foxy.
-            </p>
-            <input 
-              type="text" 
-              placeholder="Ex: https://open.spotify.com/playlist/..."
-              value={playlistUrl}
-              onChange={(e) => setPlaylistUrl(e.target.value)}
-              className="playlist-import-input"
-              disabled={isImporting}
-            />
-            <button 
-              onClick={handleImportPlaylist}
-              disabled={isImporting || !playlistUrl.trim()}
-              className="playlist-import-btn"
-            >
-              {isImporting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  <span>Importation en cours...</span>
-                </>
-              ) : (
-                <span>Lancer l'importation</span>
-              )}
-            </button>
+            <div className="settings-body">
+              <div className="settings-section">
+                <h3 className="settings-section-title">Importer des Playlists</h3>
+                <p className="settings-section-desc">
+                  Collez un lien de playlist publique <strong>Spotify</strong> ou <strong>Apple Music</strong> pour l'importer instantanément dans la file d'attente du bot Foxy.
+                </p>
+                <div className="playlist-import-form">
+                  <input 
+                    type="text" 
+                    placeholder="Ex: https://open.spotify.com/playlist/..."
+                    value={playlistUrl}
+                    onChange={(e) => setPlaylistUrl(e.target.value)}
+                    className="playlist-import-input"
+                    disabled={isImporting}
+                  />
+                  <button 
+                    onClick={handleImportPlaylist}
+                    disabled={isImporting || !playlistUrl.trim()}
+                    className="playlist-import-btn"
+                  >
+                    {isImporting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Importation...</span>
+                      </>
+                    ) : (
+                      <span>Lancer l'importation</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
