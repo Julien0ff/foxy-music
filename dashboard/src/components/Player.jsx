@@ -199,6 +199,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const [lyrics, setLyrics] = useState(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsTrackUrl, setLyricsTrackUrl] = useState(null);
+  const [lyricsOffset, setLyricsOffset] = useState(0); // Offset in seconds (+/-)
 
   // Expandable Search in Lyrics state
   const [searchQuery, setSearchQuery] = useState('');
@@ -261,6 +262,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     setLastTrackUrl(currentTrack?.url);
     setLocalProgress(serverPosition || 0);
     setAnimateCover(true);
+    setLyricsOffset(0); // Reset sync offset on song change
     // Invalide les paroles chargées si la piste change
     if (lyricsTrackUrl !== currentTrack?.url) {
       setLyrics(null);
@@ -482,6 +484,29 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
             )}
 
             <div className="lyrics-top-controls">
+              {/* Lyrics Offset timing tuner */}
+              {lyrics && lyrics.synced && lyrics.synced.length > 0 && (
+                <div className="lyrics-sync-tuner">
+                  <button 
+                    className="lyrics-sync-btn"
+                    onClick={() => setLyricsOffset(prev => prev - 0.5)}
+                    title="Avancer les paroles (-0.5s)"
+                  >
+                    -
+                  </button>
+                  <span className="lyrics-sync-value">
+                    {lyricsOffset === 0 ? 'Synchro : 0s' : `Synchro : ${lyricsOffset > 0 ? '+' : ''}${lyricsOffset}s`}
+                  </span>
+                  <button 
+                    className="lyrics-sync-btn"
+                    onClick={() => setLyricsOffset(prev => prev + 0.5)}
+                    title="Retarder les paroles (+0.5s)"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+
               {/* Expandable Search Button */}
               <div className={`lyrics-search-wrapper ${searchExpanded ? 'expanded' : ''}`}>
                 <form onSubmit={handleSearchSubmit} className="lyrics-search-form">
@@ -511,7 +536,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
           </div>
           <LyricsView
             lyrics={lyrics}
-            currentTimeMs={localProgress}
+            currentTimeMs={localProgress + (lyricsOffset * 1000)}
             onSeek={handleSeek}
             isLoading={lyricsLoading}
           />

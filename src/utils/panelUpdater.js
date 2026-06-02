@@ -24,7 +24,6 @@ function getYoutubeThumbnail(url) {
 }
 
 async function updatePanel(client, guildId) {
-    const config = getGuildConfig(guildId);
     const queue = global.queues ? global.queues.get(guildId) : null;
 
     // 1. Synchroniser en temps réel avec le Dashboard Web via Socket.io (toujours actif)
@@ -40,28 +39,9 @@ async function updatePanel(client, guildId) {
         });
     }
 
-    // 2. Mettre à jour l'embed de contrôle Discord si configuré
-    if (!config.panelChannelId || !config.panelMessageId) return;
-
+    // 2. Mettre à jour la présence du bot Discord
     try {
-        const guild = client.guilds.cache.get(guildId);
-        if (!guild) return;
-
-        const channel = guild.channels.cache.get(config.panelChannelId);
-        if (!channel) return;
-
-        const message = await channel.messages.fetch(config.panelMessageId).catch(() => null);
-        if (!message) return;
-
-        let description = '';
-        let title = '🦊 Foxy Music Panel';
-        let color = '#ff9900';
-        let thumbnail = null;
-
         if (!queue || (!queue.currentTrack && queue.tracks.length === 0)) {
-            description = '**Aucune musique en cours de lecture.**\n\nEnvoyez un lien ou un titre dans ce salon pour commencer la lecture !';
-            color = '#36393f';
-            // État par défaut quand rien ne joue
             const serverCount = client.guilds.cache.size;
             client.user.setPresence({
                 activities: [{
@@ -70,54 +50,17 @@ async function updatePanel(client, guildId) {
                 }],
                 status: 'idle'
             });
-        } else {
-            if (queue.currentTrack) {
-                const current = queue.player ? queue.player.position : 0;
-                
-                // Mettre à jour le statut du bot avec la musique en cours
-                client.user.setPresence({
-                    activities: [{
-                        name: `${queue.currentTrack.title} 🎶`,
-                        type: ActivityType.Listening
-                    }],
-                    status: 'idle'
-                });
-                const total = queue.currentTrack.duration || 0;
-                const bar = createProgressBar(current, total, 20);
-                const timeStr = `${formatTime(current)} / ${formatTime(total)}`;
-                thumbnail = queue.currentTrack.artworkUrl || getYoutubeThumbnail(queue.currentTrack.url);
-                
-                description += `**Lecture en cours :**\n🎶 [${queue.currentTrack.title}](${queue.currentTrack.url})\n`;
-                description += `\`${bar}\` \`${timeStr}\`\n\n`;
-            }
-            if (queue.tracks.length > 0) {
-                description += `**File d'attente :**\n`;
-                const nextTracks = queue.tracks.slice(0, 5);
-                nextTracks.forEach((track, index) => {
-                    description += `\`${index + 1}.\` ${track.title}\n`;
-                });
-                if (queue.tracks.length > 5) {
-                    description += `\n*...et ${queue.tracks.length - 5} autres titres.*`;
-                }
-            } else {
-                description += `\n*Aucune autre musique dans la file.*`;
-            }
+        } else if (queue.currentTrack) {
+            client.user.setPresence({
+                activities: [{
+                    name: `${queue.currentTrack.title} 🎶`,
+                    type: ActivityType.Listening
+                }],
+                status: 'idle'
+            });
         }
-
-        const embed = new EmbedBuilder()
-            .setTitle(title)
-            .setDescription(description)
-            .setColor(color)
-            .setImage('https://imgg.fr/r/p6fLtaqB.png')
-            .setFooter({ text: 'Powered by Foxy Music Web Panel' });
-
-        if (thumbnail) {
-            embed.setThumbnail(thumbnail);
-        }
-
-        await message.edit({ embeds: [embed] }).catch(() => { });
     } catch (e) {
-        console.error('Error updating panel:', e);
+        console.error('Error updating bot presence:', e);
     }
 }
 

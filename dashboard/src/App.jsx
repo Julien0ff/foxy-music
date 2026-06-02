@@ -5,7 +5,7 @@ import QueueList from './components/QueueList';
 import SearchBar from './components/SearchBar';
 import Sidebar from './components/Sidebar';
 import VoiceChannels from './components/VoiceChannels';
-import { Music } from 'lucide-react';
+import { Music, Plus, X, Loader2 } from 'lucide-react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import './App.css';
 import { API_URL } from './config';
@@ -73,6 +73,19 @@ function App() {
   const [selectedGuildId, setSelectedGuildId] = useState(null);
   const [lyricsMode, setLyricsMode] = useState(false);
   
+  // Playlist Import States
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [playlistUrl, setPlaylistUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+
+  // Background crossfade state
+  const [bgState, setBgState] = useState({
+    bg1: '',
+    bg2: '',
+    activeBg: 1
+  });
+  const [prevCover, setPrevCover] = useState('');
+
   const [queueState, setQueueState] = useState({
     currentTrack: null,
     tracks: [],
@@ -224,6 +237,29 @@ function App() {
     return () => socket.disconnect();
   }, [user, selectedGuildId]);
 
+  // Background Image Crossfading Synchronizer during render phase to avoid synchronous useEffect setState triggers
+  const cover = queueState.currentTrack?.artworkUrl || getYoutubeThumbnail(queueState.currentTrack?.url) || botInfo?.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png';
+  if (cover !== prevCover) {
+    setPrevCover(cover);
+    setBgState(prev => {
+      if (prev.activeBg === 1) {
+        if (prev.bg1 === cover) return prev;
+        return {
+          bg1: prev.bg1,
+          bg2: cover,
+          activeBg: 2
+        };
+      } else {
+        if (prev.bg2 === cover) return prev;
+        return {
+          bg1: cover,
+          bg2: prev.bg2,
+          activeBg: 1
+        };
+      }
+    });
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('discord_token');
     setToken(null);
@@ -244,6 +280,33 @@ function App() {
     }
   };
 
+  const handleImportPlaylist = async () => {
+    if (!playlistUrl.trim() || !selectedGuildId) return;
+
+    setIsImporting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/guilds/${selectedGuildId}/playlist-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: playlistUrl.trim() })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(`Playlist "${data.name}" importée avec succès (${data.count} morceaux ajoutés au bot) !`);
+        setPlaylistUrl('');
+        setIsImportModalOpen(false);
+      } else {
+        alert(data.error || 'Erreur lors de l\'importation');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erreur réseau');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   if (activePage === 'terms') {
     return <TermsOfService />;
   }
@@ -256,7 +319,9 @@ function App() {
     const bgImage = botInfo?.avatar || defaultAvatar;
     return (
       <div className="app-container landing-container">
-        <div className="dynamic-bg" style={{ backgroundImage: `url(${bgImage})`, filter: 'blur(80px) brightness(0.6)' }}></div>
+        <div className="dynamic-bg-container">
+          <div className="dynamic-bg active" style={{ backgroundImage: `url(${bgImage})` }}></div>
+        </div>
         <div className="landing-content glass-panel">
           <div className="logo-container" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
             <img src={bgImage} alt="Foxy Music Bot" style={{ width: 120, height: 120, borderRadius: '50%', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', objectFit: 'cover' }} />
@@ -275,14 +340,19 @@ function App() {
     );
   }
 
-  const bgCover = queueState.currentTrack?.artworkUrl || getYoutubeThumbnail(queueState.currentTrack?.url);
-
   return (
     <div className="app-container">
-      <div 
-        className="dynamic-bg" 
-        style={{ backgroundImage: bgCover ? `url(${bgCover})` : 'none' }}
-      ></div>
+      {/* Premium Double Layer Crossfading Backgrounds */}
+      <div className="dynamic-bg-container">
+        <div 
+          className={`dynamic-bg ${bgState.activeBg === 1 ? 'active' : ''}`} 
+          style={{ backgroundImage: bgState.bg1 ? `url(${bgState.bg1})` : 'none' }}
+        ></div>
+        <div 
+          className={`dynamic-bg ${bgState.activeBg === 2 ? 'active' : ''}`} 
+          style={{ backgroundImage: bgState.bg2 ? `url(${bgState.bg2})` : 'none' }}
+        ></div>
+      </div>
 
       <Sidebar 
         guilds={sharedGuilds} 
@@ -294,7 +364,6 @@ function App() {
       />
 
       <div className="main-wrapper">
-
         <main className="dashboard-layout">
           {selectedGuildId ? (
             <div className={`dashboard-grid ${lyricsMode ? 'lyrics-active-grid' : ''}`}>
@@ -305,10 +374,17 @@ function App() {
                 />
               </div>
               
-            <div className={`center-column ${lyricsMode ? 'lyrics-center' : ''}`}>
+              <div className={`center-column ${lyricsMode ? 'lyrics-center' : ''}`}>
                 {!lyricsMode && (
-                  <div className="search-wrapper">
+                  <div className="search-wrapper" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <SearchBar guildId={selectedGuildId} />
+                    <button 
+                      onClick={() => setIsImportModalOpen(true)}
+                      className="playlist-import-trigger"
+                      title="Importer une playlist (Spotify, Apple Music)"
+                    >
+                      <Plus size={20} />
+                    </button>
                   </div>
                 )}
                 <div className={`player-wrapper ${lyricsMode ? 'lyrics-player-wrapper' : ''}`}>
@@ -344,6 +420,45 @@ function App() {
           )}
         </main>
       </div>
+
+      {/* Playlist Import Overlay Modal */}
+      {isImportModalOpen && (
+        <div className="playlist-import-modal" onClick={() => setIsImportModalOpen(false)}>
+          <div className="playlist-import-card" onClick={(e) => e.stopPropagation()}>
+            <div className="playlist-import-header">
+              <span className="playlist-import-title">Importer une playlist</span>
+              <button className="playlist-import-close" onClick={() => setIsImportModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              Collez un lien de playlist publique **Spotify** ou **Apple Music** pour l'importer instantanément dans le bot Foxy.
+            </p>
+            <input 
+              type="text" 
+              placeholder="Ex: https://open.spotify.com/playlist/..."
+              value={playlistUrl}
+              onChange={(e) => setPlaylistUrl(e.target.value)}
+              className="playlist-import-input"
+              disabled={isImporting}
+            />
+            <button 
+              onClick={handleImportPlaylist}
+              disabled={isImporting || !playlistUrl.trim()}
+              className="playlist-import-btn"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>Importation en cours...</span>
+                </>
+              ) : (
+                <span>Lancer l'importation</span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ function getQueue(guildId) {
 
 async function playNext(guildId, client) {
     const queue = getQueue(guildId);
+    queue.prefetchedNext = false; // Reset background prefetch flag
 
     if (queue.loop && queue.currentTrack) {
         // If loop is enabled, put the current track at the beginning of the queue to play it again
@@ -37,29 +38,17 @@ async function playNext(guildId, client) {
     const track = queue.tracks.shift();
     queue.currentTrack = track;
 
-    let useIdentifier = false;
-    if (track.nodeName && queue.player && queue.player.node.name !== track.nodeName) {
-        try {
-            const connection = client.shoukaku.connections.get(guildId);
-            if (connection && connection.serverUpdate) {
-                console.log(`[Player] Moving player to ${track.nodeName} to match track resolution node`);
-                await queue.player.move(track.nodeName);
-            } else {
-                console.log(`[Player] Connection not ready for move, will play via identifier`);
-                useIdentifier = true;
-            }
-        } catch (err) {
-            console.error('Failed to move player for next track, falling back to identifier:', err.message);
-            useIdentifier = true;
-        }
-    }
-
     try {
         if (queue.player) {
-            if (useIdentifier) {
-                await queue.player.playTrack({ track: { identifier: track.url } });
+            if (track.encoded) {
+                try {
+                    await queue.player.playTrack({ track: { encoded: track.encoded } });
+                } catch (encodedErr) {
+                    console.warn(`[Player] Failed to play encoded track, falling back to identifier: ${encodedErr.message}`);
+                    await queue.player.playTrack({ track: { identifier: track.url } });
+                }
             } else {
-                await queue.player.playTrack({ track: { encoded: track.encoded } });
+                await queue.player.playTrack({ track: { identifier: track.url } });
             }
             console.log(`[Player] Now streaming: ${track.title}`);
             if (client) updatePanel(client, guildId);
@@ -189,6 +178,54 @@ module.exports = {
                         console.error('[Player Error]', error);
                         playNext(interaction.guild.id, interaction.client);
                     });
+
+                    player.on('update', async (state) => {
+                        const queue = getQueue(interaction.guild.id);
+                        if (!queue || queue.tracks.length === 0 || queue.prefetchedNext) return;
+
+                        const track = queue.currentTrack;
+                        if (!track || !track.duration) return;
+
+                        const timeRemaining = track.duration - state.position;
+                        if (timeRemaining <= 15000) { // 15 seconds or less remaining
+                            queue.prefetchedNext = true;
+                            const nextTrack = queue.tracks[0];
+                            if (nextTrack && !nextTrack.encoded) {
+                                console.log(`[Prefetch] Pre-resolving next track in background: ${nextTrack.title || nextTrack.url}`);
+                                try {
+                                    const nodes = Array.from(interaction.client.shoukaku.nodes.values());
+                                    for (const node of nodes) {
+                                        let finalQuery = nextTrack.url || nextTrack.query;
+                                        if (nextTrack.isImported) {
+                                            finalQuery = `ytsearch:${nextTrack.title} ${nextTrack.artist || ''}`;
+                                        }
+                                        const result = await node.rest.resolve(finalQuery);
+                                        if (result && result.data) {
+                                            let trackToPlay = null;
+                                            if (result.loadType === 'playlist') {
+                                                trackToPlay = result.data.tracks[0];
+                                            } else if (result.loadType === 'track') {
+                                                trackToPlay = result.data;
+                                            } else if (result.loadType === 'search') {
+                                                trackToPlay = result.data[0];
+                                            }
+                                            if (trackToPlay) {
+                                                nextTrack.encoded = trackToPlay.encoded;
+                                                nextTrack.url = trackToPlay.info.uri;
+                                                nextTrack.duration = trackToPlay.info.length;
+                                                nextTrack.artworkUrl = trackToPlay.info.artworkUrl || nextTrack.artworkUrl;
+                                                nextTrack.title = trackToPlay.info.title;
+                                                console.log(`[Prefetch] Successfully pre-resolved next track: ${nextTrack.title}`);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('[Prefetch Error]', err.message);
+                                }
+                            }
+                        }
+                    });
                 } catch (err) {
                     console.error('[Join Error]', err);
                     return interaction.followUp('❌ Impossible de rejoindre le salon vocal.');
@@ -244,10 +281,39 @@ module.exports = {
                 return interaction.followUp('❌ No results found!');
             }
 
-            let trackToPlay = null;
             if (result.loadType === 'playlist') {
-                trackToPlay = result.data.tracks[0];
-            } else if (result.loadType === 'track') {
+                const tracks = result.data.tracks;
+                if (!tracks || tracks.length === 0) {
+                    return interaction.followUp('❌ No tracks found in the playlist!');
+                }
+
+                const tracksInfo = tracks.map(t => ({
+                    title: t.info.title,
+                    url: t.info.uri,
+                    encoded: t.encoded,
+                    duration: t.info.length,
+                    artworkUrl: t.info.artworkUrl || null,
+                    nodeName: resolvedNode.name
+                }));
+
+                const isAlreadyPlaying = !!queue.currentTrack;
+                queue.tracks.push(...tracksInfo);
+
+                if (!isAlreadyPlaying) {
+                    const nowPlaying = await playNext(interaction.guild.id, interaction.client);
+                    if (nowPlaying) {
+                        return interaction.followUp(`🦊 Now playing playlist: **${result.data.info.name || 'Playlist'}** (${tracksInfo.length} tracks). Current: **${nowPlaying.title}**`);
+                    } else {
+                        return interaction.followUp('❌ Failed to play the track.');
+                    }
+                } else {
+                    updatePanel(interaction.client, interaction.guild.id);
+                    return interaction.followUp(`🦊 Added playlist **${result.data.info.name || 'Playlist'}** to queue (${tracksInfo.length} tracks).`);
+                }
+            }
+
+            let trackToPlay = null;
+            if (result.loadType === 'track') {
                 trackToPlay = result.data;
             } else if (result.loadType === 'search') {
                 trackToPlay = result.data[0];
@@ -257,16 +323,6 @@ module.exports = {
 
             if (!trackToPlay) {
                 return interaction.followUp('❌ No results found!');
-            }
-
-            // Move the player to the resolved node if it is different
-            if (resolvedNode && queue.player && queue.player.node && queue.player.node.name !== resolvedNode.name) {
-                try {
-                    console.log(`[Player] Moving player from ${queue.player.node.name} to ${resolvedNode.name} to match resolved track node`);
-                    await queue.player.move(resolvedNode.name);
-                } catch (err) {
-                    console.error('Failed to move player to resolved node:', err);
-                }
             }
 
             const trackInfo = { 

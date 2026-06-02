@@ -1,0 +1,244 @@
+const dns = require('node:dns');
+
+/**
+ * Parses playlist URLs (Spotify, Apple Music) and extracts track names/artists 
+ * using public HTML embed pages without requiring any API keys.
+ */
+class PlaylistParser {
+    /**
+     * Parse a Spotify playlist URL using the public embed page
+     * @param {string} url Spotify playlist URL
+     * @returns {Promise<{name: string, tracks: Array<{title: string, artist: string, duration: number, artworkUrl: string}>}>}
+     */
+    static async parseSpotify(url) {
+        const match = url.match(/playlist\/([a-zA-Z0-9]+)/);
+        if (!match) throw new Error('Format de lien Spotify invalide.');
+        const playlistId = match[1];
+
+        const embedUrl = `https://open.spotify.com/embed/playlist/${playlistId}`;
+        console.log(`[PlaylistParser] Fetching Spotify embed: ${embedUrl}`);
+
+        const res = await fetch(embedUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+
+        if (!res.ok) throw new Error(`Impossible de récupérer la playlist Spotify (${res.status})`);
+        const html = await res.text();
+
+        // 1. Essayer d'extraire la balise script contenant le JSON initial-state ou resource
+        let tracks = [];
+        let playlistName = 'Spotify Playlist';
+
+        const resourceMatch = html.match(/<script[^>]*id="resource"[^>]*>([\s\S]*?)<\/script>/i);
+        if (resourceMatch) {
+            try {
+                const data = JSON.parse(resourceMatch[1].trim());
+                playlistName = data.name || playlistName;
+                if (data.tracks && data.tracks.items) {
+                    tracks = data.tracks.items.map(item => {
+                        const t = item.track;
+                        if (!t) return null;
+                        return {
+                            title: t.name,
+                            artist: t.artists ? t.artists.map(a => a.name).join(', ') : 'Unknown Artist',
+                            duration: t.duration_ms || 0,
+                            artworkUrl: t.album && t.album.images && t.album.images[0] ? t.album.images[0].url : null,
+                            isImported: true
+                        };
+                    }).filter(Boolean);
+                }
+            } catch (e) {
+                console.error('[PlaylistParser] Failed to parse Spotify resource JSON:', e.message);
+            }
+        }
+
+        // 2. Si vide, essayer initial-state
+        if (tracks.length === 0) {
+            const stateMatch = html.match(/<script[^>]*id="initial-state"[^>]*>([\s\S]*?)<\/script>/i);
+            if (stateMatch) {
+                try {
+                    const decodedJson = Buffer.from(stateMatch[1].trim(), 'base64').toString('utf-8');
+                    const data = JSON.parse(decodedJson);
+                    // Search in initial-state structure
+                    // Dependending on the embed version, it might be in different subkeys
+                    console.log('[PlaylistParser] Parsed initial-state JSON successfully.');
+                } catch (e) {
+                    // Not base64, try simple parse
+                    try {
+                        const data = JSON.parse(stateMatch[1].trim());
+                        // try to extract tracks
+                    } catch (_) {}
+                }
+            }
+        }
+
+        // 3. Fallback d'extraction d'urgence par expression régulière des données de piste
+        if (tracks.length === 0) {
+            // Dans les versions récentes d'embed Spotify, les pistes sont souvent injectées dans un bloc JSON global
+            const nextDataMatch = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
+            if (nextDataMatch) {
+                try {
+                    const data = JSON.parse(nextDataMatch[1].trim());
+                    const playlistData = data.props?.pageProps?.state?.playlist || data.props?.pageProps?.playlistData;
+                    if (playlistData) {
+                        playlistName = playlistData.name || playlistName;
+                        const items = playlistData.tracks?.items || playlistData.tracks || [];
+                        tracks = items.map(item => {
+                            const t = item.track || item;
+                            if (!t || !t.name) return null;
+                            return {
+                                title: t.name,
+                                artist: t.artists ? t.artists.map(a => a.name).join(', ') : 'Unknown Artist',
+                                duration: t.duration_ms || 0,
+                                artworkUrl: t.album?.images?.[0]?.url || null,
+                                isImported: true
+                            };
+                        }).filter(Boolean);
+                    }
+                } catch (e) {
+                    console.error('[PlaylistParser] Failed to parse __NEXT_DATA__ JSON:', e.message);
+                }
+            }
+        }
+
+        if (tracks.length === 0) {
+            throw new Error('Aucune piste n\'a pu être extraite de la playlist Spotify publique.');
+        }
+
+        console.log(`[PlaylistParser] Spotify playlist "${playlistName}" parsed with ${tracks.length} tracks.`);
+        return { name: playlistName, tracks };
+    }
+
+    /**
+     * Parse an Apple Music playlist URL using the public embed page
+     * @param {string} url Apple Music playlist URL
+     * @returns {Promise<{name: string, tracks: Array<{title: string, artist: string, duration: number, artworkUrl: string}>}>}
+     */
+    static async parseAppleMusic(url) {
+        // Match pl.[a-zA-Z0-9-]+
+        const plMatch = url.match(/pl\.([a-zA-Z0-9-]+)/);
+        if (!plMatch) throw new Error('Format de lien Apple Music invalide (ID pl. requis).');
+        const playlistId = plMatch[0];
+
+        // Format embed url: https://embed.music.apple.com/fr/playlist/pl.playlistId
+        // We'll target /fr/ or /us/ but /us/ is universal
+        const embedUrl = `https://embed.music.apple.com/us/playlist/${playlistId}`;
+        console.log(`[PlaylistParser] Fetching Apple Music embed: ${embedUrl}`);
+
+        const res = await fetch(embedUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+
+        if (!res.ok) throw new Error(`Impossible de récupérer la playlist Apple Music (${res.status})`);
+        const html = await res.text();
+
+        let tracks = [];
+        let playlistName = 'Apple Music Playlist';
+
+        // 1. Rechercher bootstrap-data JSON
+        const bootstrapMatch = html.match(/<script[^>]*id="bootstrap-data"[^>]*>([\s\S]*?)<\/script>/i);
+        if (bootstrapMatch) {
+            try {
+                const data = JSON.parse(bootstrapMatch[1].trim());
+                // In Apple Music Embed bootstrap-data:
+                // Tracks are usually inside data.songList or data.relationships.tracks.data
+                const songs = data.songs || [];
+                if (songs.length > 0) {
+                    tracks = songs.map(s => {
+                        const attrs = s.attributes || {};
+                        return {
+                            title: attrs.name || 'Unknown Title',
+                            artist: attrs.artistName || 'Unknown Artist',
+                            duration: attrs.durationInMillis || 0,
+                            artworkUrl: attrs.artwork?.url ? attrs.artwork.url.replace('{w}', '300').replace('{h}', '300') : null,
+                            isImported: true
+                        };
+                    });
+                }
+            } catch (e) {
+                console.error('[PlaylistParser] Failed to parse Apple Music bootstrap JSON:', e.message);
+            }
+        }
+
+        // 2. Fallback: parse __NEXT_DATA__ or index-data
+        if (tracks.length === 0) {
+            const scriptDataMatch = html.match(/<script[^>]*id="index-data"[^>]*>([\s\S]*?)<\/script>/i);
+            if (scriptDataMatch) {
+                try {
+                    const data = JSON.parse(scriptDataMatch[1].trim());
+                    // Extract songs
+                    const songs = data.songs || [];
+                    if (songs.length > 0) {
+                        tracks = songs.map(s => {
+                            const attrs = s.attributes || {};
+                            return {
+                                title: attrs.name || 'Unknown Title',
+                                artist: attrs.artistName || 'Unknown Artist',
+                                duration: attrs.durationInMillis || 0,
+                                artworkUrl: attrs.artwork?.url ? attrs.artwork.url.replace('{w}', '300').replace('{h}', '300') : null,
+                                isImported: true
+                            };
+                        });
+                    }
+                } catch (_) {}
+            }
+        }
+
+        // 3. Fallback direct regex matching on structured metadata if JSON scripts failed
+        if (tracks.length === 0) {
+            // Apple music songs often appear as JSON items inside the HTML content
+            const schemaMatch = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi);
+            if (schemaMatch) {
+                for (const scriptTag of schemaMatch) {
+                    try {
+                        const content = scriptTag.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '').trim();
+                        const schema = JSON.parse(content);
+                        if (schema['@type'] == 'MusicPlaylist' || schema['@type'] == 'MusicAlbum') {
+                            playlistName = schema.name || playlistName;
+                            const items = schema.track?.itemListElement || schema.tracks || [];
+                            tracks = items.map(item => {
+                                const song = item.item || item;
+                                if (!song || song['@type'] !== 'MusicRecording') return null;
+                                return {
+                                    title: song.name,
+                                    artist: song.byArtist?.name || 'Unknown Artist',
+                                    duration: 180000, // Default 3min if missing
+                                    artworkUrl: song.image || null,
+                                    isImported: true
+                                };
+                            }).filter(Boolean);
+                        }
+                    } catch (_) {}
+                }
+            }
+        }
+
+        if (tracks.length === 0) {
+            throw new Error('Aucune piste n\'a pu être extraite de la playlist Apple Music publique.');
+        }
+
+        console.log(`[PlaylistParser] Apple Music playlist "${playlistName}" parsed with ${tracks.length} tracks.`);
+        return { name: playlistName, tracks };
+    }
+
+    /**
+     * Generic parser router based on URL
+     * @param {string} url Playlist URL
+     * @returns {Promise<{name: string, tracks: Array<{title: string, artist: string, duration: number, artworkUrl: string}>}>}
+     */
+    static async parse(url) {
+        if (url.includes('spotify.com') || url.includes('spotify.link')) {
+            return this.parseSpotify(url);
+        } else if (url.includes('music.apple.com')) {
+            return this.parseAppleMusic(url);
+        } else {
+            throw new Error('Type de playlist non supporté (Spotify et Apple Music uniquement).');
+        }
+    }
+}
+
+module.exports = PlaylistParser;

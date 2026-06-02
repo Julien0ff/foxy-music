@@ -18,10 +18,19 @@ export default function QueueList({ tracks }) {
           {tracks.map((track, index) => (
             <div key={index} className="queue-item" style={{ animationDelay: `${index * 0.1}s` }}>
               <div className="queue-index">{index + 1}</div>
-              <div className="queue-item-info">
-                <div className="queue-item-title">{track.title}</div>
+              <div className="queue-item-artwork">
+                {track.artworkUrl ? (
+                  <img src={track.artworkUrl} alt="" className="queue-artwork-img" />
+                ) : (
+                  <div className="queue-artwork-fallback">
+                    <Music size={14} color="var(--primary)" />
+                  </div>
+                )}
               </div>
-              <Music size={16} color="var(--primary)" />
+              <div className="queue-item-info">
+                <div className="queue-item-title" title={track.title}>{track.title}</div>
+                {track.artist && <div className="queue-item-artist">{track.artist}</div>}
+              </div>
             </div>
           ))}
         </div>

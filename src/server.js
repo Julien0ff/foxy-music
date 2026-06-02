@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const { getGuildConfig } = require('./utils/db');
 const { updatePanel } = require('./utils/panelUpdater');
 const { fetchLyrics } = require('./utils/lyrics');
+const PlaylistParser = require('./utils/playlistParser');
 
 function startServer(client) {
     const app = express();
@@ -398,29 +399,17 @@ function startServer(client) {
                 const trackToPlay = queue.tracks.shift();
                 queue.currentTrack = trackToPlay;
 
-                let useIdentifier = false;
-                if (trackToPlay.nodeName && queue.player && queue.player.node && queue.player.node.name !== trackToPlay.nodeName) {
-                    try {
-                        const connection = client.shoukaku.connections.get(guildId);
-                        if (connection && connection.serverUpdate) {
-                            console.log(`[Player] Moving player to ${trackToPlay.nodeName} to match track resolution node`);
-                            await queue.player.move(trackToPlay.nodeName);
-                        } else {
-                            console.log(`[Player] Connection not ready for move, will play via identifier`);
-                            useIdentifier = true;
-                        }
-                    } catch (err) {
-                        console.error('Failed to move player for immediate play, falling back to identifier:', err.message);
-                        useIdentifier = true;
-                    }
-                }
-
                 try {
                     if (queue.player) {
-                        if (useIdentifier) {
-                            await queue.player.playTrack({ track: { identifier: trackToPlay.url } });
+                        if (trackToPlay.encoded) {
+                            try {
+                                await queue.player.playTrack({ track: { encoded: trackToPlay.encoded } });
+                            } catch (encodedErr) {
+                                console.warn(`[Player] Web Play failed encoded, falling back to identifier: ${encodedErr.message}`);
+                                await queue.player.playTrack({ track: { identifier: trackToPlay.url } });
+                            }
                         } else {
-                            await queue.player.playTrack({ track: { encoded: trackToPlay.encoded } });
+                            await queue.player.playTrack({ track: { identifier: trackToPlay.url } });
                         }
                     }
                 } catch (e) {
@@ -497,6 +486,100 @@ function startServer(client) {
         } catch (e) {
             console.error('[Seek Error]', e);
             return res.status(500).json({ error: 'Seek failed' });
+        }
+    });
+
+    // --- Playlist Import ---
+    app.post('/api/guilds/:id/playlist-import', async (req, res) => {
+        const guildId = req.params.id;
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ error: 'Missing playlist URL' });
+
+        try {
+            const result = await PlaylistParser.parse(url);
+            
+            if (!global.queues) global.queues = new Map();
+            let queue = global.queues.get(guildId);
+            if (!queue) {
+                queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: 100 };
+                global.queues.set(guildId, queue);
+            }
+
+            // Ensure player is connected
+            if (!queue.player) {
+                let player = client.shoukaku.players.get(guildId);
+                if (player) {
+                    queue.player = player;
+                } else {
+                    const guild = client.guilds.cache.get(guildId);
+                    if (guild) {
+                        const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
+                        let targetChannel = voiceChannels.find(c => c.members.filter(m => !m.user.bot).size > 0);
+                        if (!targetChannel) targetChannel = voiceChannels.first();
+
+                        if (targetChannel) {
+                            try {
+                                try { await client.shoukaku.leaveVoiceChannel(guildId); } catch (_) {}
+                                player = await client.shoukaku.joinVoiceChannel({
+                                    guildId: guildId,
+                                    channelId: targetChannel.id,
+                                    shardId: 0
+                                });
+                                queue.player = player;
+                                
+                                player.on('start', () => updatePanel(client, guildId));
+                                player.on('end', (reason) => {
+                                    if (reason.reason === 'REPLACED') return;
+                                    const command = client.commands.get('play');
+                                    if (command && command.playNext) command.playNext(guildId, client);
+                                });
+                                player.on('error', (err) => {
+                                    console.error('[Player Error]', err);
+                                    const command = client.commands.get('play');
+                                    if (command && command.playNext) command.playNext(guildId, client);
+                                });
+                            } catch (err) {
+                                console.error('Failed to auto-connect voice channel:', err);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!queue.player) {
+                return res.status(400).json({ error: 'Le bot doit d\'abord être connecté à un salon vocal.' });
+            }
+
+            const isAlreadyPlaying = !!queue.currentTrack;
+            
+            // Map imported playlist tracks to queue items
+            const tracksToAdd = result.tracks.map(t => ({
+                title: t.title,
+                artist: t.artist,
+                url: null, // Background pre-resolve
+                query: `${t.title} ${t.artist}`,
+                artworkUrl: t.artworkUrl,
+                duration: t.duration,
+                isImported: true
+            }));
+
+            queue.tracks.push(...tracksToAdd);
+
+            res.json({ success: true, name: result.name, count: tracksToAdd.length });
+
+            // Start playing immediately if nothing is currently playing
+            if (!isAlreadyPlaying) {
+                const command = client.commands.get('play');
+                if (command && command.playNext) {
+                    await command.playNext(guildId, client);
+                }
+            } else {
+                updatePanel(client, guildId);
+            }
+
+        } catch (e) {
+            console.error('[Playlist Import Error]', e);
+            return res.status(500).json({ error: e.message || 'Playlist import failed' });
         }
     });
 

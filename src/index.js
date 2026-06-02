@@ -6,21 +6,15 @@ const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
     {
-        name: 'Jirayu',
-        url: 'lavalink.jirayu.net:443',
+        name: 'Jirayu-13592',
+        url: 'lavalink.jirayu.net:13592',
         auth: 'youshallnotpass',
-        secure: true
+        secure: false
     },
     {
-        name: 'Serenetia',
-        url: 'lavalinkv4.serenetia.com:443',
+        name: 'Serenetia-80',
+        url: 'lavalinkv4.serenetia.com:80',
         auth: 'https://seretia.link/discord',
-        secure: true
-    },
-    {
-        name: 'NexCloud',
-        url: 'n3.nexcloud.in:2026',
-        auth: 'nexcloud',
         secure: false
     },
     {
@@ -30,9 +24,51 @@ const Nodes = [
         secure: false
     },
     {
-        name: 'MilloHost',
+        name: 'TriniumHost-4333',
+        url: 'lavalink.triniumhost.com:4333',
+        auth: 'free',
+        secure: false
+    },
+    {
+        name: 'TriniumHost-2333',
+        url: 'lavalink.triniumhost.com:2333',
+        auth: 'kirito',
+        secure: false
+    },
+    {
+        name: 'NexCloud',
+        url: 'n3.nexcloud.in:2026',
+        auth: 'nexcloud',
+        secure: false
+    },
+    {
+        name: 'VexaNode-2031',
+        url: 'omega.vexanode.cloud:2031',
+        auth: 'https://discord.vexanode.cloud',
+        secure: false
+    },
+    {
+        name: 'Serenetia-SSL',
+        url: 'lavalinkv4.serenetia.com:443',
+        auth: 'https://seretia.link/discord',
+        secure: true
+    },
+    {
+        name: 'Jirayu-SSL',
+        url: 'lavalink.jirayu.net:443',
+        auth: 'youshallnotpass',
+        secure: true
+    },
+    {
+        name: 'MilloHost-SSL',
         url: 'lava-v4.millohost.my.id:443',
         auth: 'https://discord.gg/mjS5J2K3ep',
+        secure: true
+    },
+    {
+        name: 'TriniumHost-SSL',
+        url: 'lavalink-v4.triniumhost.com:443',
+        auth: 'free',
         secure: true
     }
 ];
@@ -54,8 +90,10 @@ const client = new Client({
 client.commands = new Collection();
 
 const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), Nodes);
-shoukaku.on('error', (_, error) => console.error('Shoukaku Error:', error));
-shoukaku.on('ready', (name) => console.log(`Lavalink Node: ${name} is now connected`));
+shoukaku.on('error', (name, error) => console.error(`[Lavalink Node ${name}] Error:`, error));
+shoukaku.on('ready', (name) => console.log(`[Lavalink Node ${name}] Connected!`));
+shoukaku.on('close', (name, code, reason) => console.warn(`[Lavalink Node ${name}] Connection closed (Code: ${code}, Reason: ${reason})`));
+shoukaku.on('disconnect', (name, players, moved) => console.warn(`[Lavalink Node ${name}] Disconnected. Players: ${players.length}, Moved: ${moved}`));
 client.shoukaku = shoukaku;
 
 // Load Commands
@@ -90,49 +128,7 @@ client.once('ready', () => {
     startServer(client);
 });
 
-client.on('messageCreate', async message => {
-    if (message.author.bot || !message.guild) return;
-
-    const channel = message.channel;
-    const config = getGuildConfig(message.guild.id);
-    if (config.panelChannelId === channel.id) {
-        message.delete().catch(() => {});
-        
-        const voiceChannel = message.member.voice.channel;
-        if (!voiceChannel) {
-            const reply = await channel.send(`❌ <@${message.author.id}>, tu dois être dans un salon vocal !`);
-            setTimeout(() => reply.delete().catch(() => {}), 5000);
-            return;
-        }
-
-        const command = client.commands.get('play');
-        if (command) {
-            // Mock interaction for the play command
-            const mockInteraction = {
-                client: client,
-                guild: message.guild,
-                member: message.member,
-                channel: channel,
-                options: { getString: () => message.content },
-                deferReply: async () => {},
-                reply: async (data) => {
-                    const reply = await channel.send(data);
-                    setTimeout(() => reply.delete().catch(() => {}), 5000);
-                },
-                followUp: async (data) => {
-                    const reply = await channel.send(data);
-                    setTimeout(() => reply.delete().catch(() => {}), 5000);
-                }
-            };
-            try {
-                await command.execute(mockInteraction);
-                updatePanel(client, message.guild.id);
-            } catch (e) {
-                console.error('Error executing play via panel:', e);
-            }
-        }
-    }
-});
+// Discord panel listener disabled - Web Dashboard is now the primary control interface
 
 client.on('interactionCreate', async interaction => {
     if (interaction.isButton()) {
@@ -185,6 +181,13 @@ client.on('interactionCreate', async interaction => {
                     await lyricsCmd.execute(interaction);
                 } else {
                     await interaction.reply({ content: '❌ Commande paroles introuvable.', ephemeral: true });
+                }
+            } else if (interaction.customId === 'foxy_refresh_np') {
+                const nowplayingCmd = client.commands.get('nowplaying');
+                if (nowplayingCmd) {
+                    await nowplayingCmd.execute(interaction);
+                } else {
+                    await interaction.reply({ content: '❌ Commande nowplaying introuvable.', ephemeral: true });
                 }
             } else {
                 await interaction.reply({ content: 'Bouton non géré pour le moment.', ephemeral: true });
