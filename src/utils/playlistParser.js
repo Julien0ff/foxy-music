@@ -1,10 +1,97 @@
 const dns = require('node:dns');
 
+let cachedSpotifyToken = null;
+let spotifyTokenExpiresAt = 0;
+
+async function getSpotifyAccessToken() {
+    if (cachedSpotifyToken && Date.now() < spotifyTokenExpiresAt) {
+        return cachedSpotifyToken;
+    }
+    const clientId = process.env.SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return null;
+
+    try {
+        const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
+            },
+            body: 'grant_type=client_credentials'
+        });
+
+        if (!tokenRes.ok) return null;
+
+        const tokenData = await tokenRes.json();
+        cachedSpotifyToken = tokenData.access_token;
+        spotifyTokenExpiresAt = Date.now() + (tokenData.expires_in - 60) * 1000;
+        return cachedSpotifyToken;
+    } catch (err) {
+        console.error('[PlaylistParser] Spotify Token Error:', err.message);
+        return null;
+    }
+}
+
 /**
  * Parses playlist URLs (Spotify, Apple Music) and extracts track names/artists 
  * using public HTML embed pages without requiring any API keys.
  */
 class PlaylistParser {
+    /**
+     * Get a Spotify track name using official API or oembed fallback
+     * @param {string} url Spotify track URL
+     * @returns {Promise<string|null>} Track name (e.g. "Song Name - Artist Name")
+     */
+    static async getSpotifyTrackName(url) {
+        try {
+            // Resolve spotify.link redirects if present
+            if (url.includes('spotify.link')) {
+                try {
+                    const redirectRes = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+                    url = redirectRes.url;
+                } catch (e) {
+                    console.error('[PlaylistParser] Failed to resolve spotify.link redirect:', e.message);
+                }
+            }
+
+            const match = url.match(/\/track\/([a-zA-Z0-9]+)/);
+            if (match) {
+                const trackId = match[1];
+                const token = await getSpotifyAccessToken();
+                if (token) {
+                    const trackRes = await fetch(`https://api.spotify.com/v1/tracks/${trackId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (trackRes.ok) {
+                        const trackData = await trackRes.json();
+                        const artistName = trackData.artists ? trackData.artists.map(a => a.name).join(', ') : '';
+                        const fullName = artistName ? `${trackData.name} - ${artistName}` : trackData.name;
+                        console.log(`[PlaylistParser] Resolved Spotify track via Web API: "${fullName}"`);
+                        return fullName;
+                    } else {
+                        console.warn(`[PlaylistParser] Spotify API returned ${trackRes.status} for track lookup`);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[PlaylistParser] Official Spotify track lookup failed:', err.message);
+        }
+
+        // Fallback to oembed if official lookup is not configured or fails
+        try {
+            console.log('[PlaylistParser] Falling back to oembed for Spotify track...');
+            const res = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`);
+            if (res.ok) {
+                const data = await res.json();
+                return data.title || null;
+            }
+        } catch (e) {
+            console.error('[PlaylistParser] Spotify oembed fallback failed:', e.message);
+        }
+        return null;
+    }
+
     /**
      * Parse a Spotify playlist URL using the public embed page
      * @param {string} url Spotify playlist URL
@@ -180,25 +267,10 @@ class PlaylistParser {
      * Parse a Spotify playlist using the official Web API
      */
     static async parseSpotifyOfficial(playlistId) {
-        const clientId = process.env.SPOTIFY_CLIENT_ID;
-        const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-        
-        // 1. Get Client Credentials token
-        const tokenRes = await fetch('https://accounts.spotify.com/api/token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
-            },
-            body: 'grant_type=client_credentials'
-        });
-
-        if (!tokenRes.ok) {
-            throw new Error(`Failed to get Spotify access token (status: ${tokenRes.status})`);
+        const accessToken = await getSpotifyAccessToken();
+        if (!accessToken) {
+            throw new Error('Failed to get Spotify access token');
         }
-
-        const tokenData = await tokenRes.json();
-        const accessToken = tokenData.access_token;
 
         // 2. Fetch playlist details (with track paging)
         let tracks = [];

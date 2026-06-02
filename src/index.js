@@ -53,12 +53,12 @@ const Nodes = [
         auth: 'youshallnotpass',
         secure: true
     },
-    {
-        name: 'MilloHost-SSL',
-        url: 'lava-v4.millohost.my.id:443',
-        auth: 'https://discord.gg/mjS5J2K3ep',
-        secure: true
-    },
+//    {
+//        name: 'MilloHost-SSL',
+//        url: 'lava-v4.millohost.my.id:443',
+//        auth: 'https://discord.gg/mjS5J2K3ep',
+//        secure: true
+//    },
     {
         name: 'TriniumHost-SSL',
         url: 'lavalink-v4.triniumhost.com:443',

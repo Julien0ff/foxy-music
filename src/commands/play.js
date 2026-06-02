@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { updatePanel } = require('../utils/panelUpdater');
+const PlaylistParser = require('../utils/playlistParser');
 
 // Store queues per guild
 if (!global.queues) global.queues = new Map();
@@ -38,6 +39,71 @@ async function playNext(guildId, client) {
 
     const track = queue.tracks.shift();
     queue.currentTrack = track;
+
+    // Resolve track if it's imported and doesn't have an encoded track or URL yet
+    if (!track.encoded && !track.url) {
+        console.log(`[Player] Resolving unresolved track in playNext: ${track.title}`);
+        try {
+            const nodes = Array.from(client.shoukaku.nodes.values());
+            let resolved = false;
+            for (const node of nodes) {
+                let resolveQuery = track.query || track.title;
+                if (track.isImported) {
+                    resolveQuery = `scsearch:${track.title} ${track.artist || ''}`;
+                }
+                const result = await node.rest.resolve(resolveQuery);
+                if (result && result.data) {
+                    let trackToPlay = null;
+                    if (result.loadType === 'playlist') {
+                        trackToPlay = result.data.tracks[0];
+                    } else if (result.loadType === 'track') {
+                        trackToPlay = result.data;
+                    } else if (result.loadType === 'search') {
+                        trackToPlay = result.data[0];
+                    }
+                    
+                    if (trackToPlay) {
+                        // Redirect YouTube resolved tracks to SoundCloud search to bypass geo-blocks/captchas
+                        if (trackToPlay.info.uri && (trackToPlay.info.uri.includes('youtube.com') || trackToPlay.info.uri.includes('youtu.be'))) {
+                            console.log(`[Player] playNext resolved YouTube track "${trackToPlay.info.title}". Redirecting to SoundCloud...`);
+                            const scSearchQuery = `scsearch:${trackToPlay.info.title}`;
+                            let scResolved = false;
+                            for (const scNode of nodes) {
+                                try {
+                                    const scResult = await scNode.rest.resolve(scSearchQuery);
+                                    if (scResult && scResult.loadType === 'search' && scResult.data && scResult.data.length > 0) {
+                                        trackToPlay = scResult.data[0];
+                                        scResolved = true;
+                                        break;
+                                    }
+                                } catch (err) {
+                                    // ignore
+                                }
+                            }
+                            if (!scResolved) {
+                                // continue to next node or fail
+                            }
+                        }
+                        
+                        track.encoded = trackToPlay.encoded;
+                        track.url = trackToPlay.info.uri;
+                        track.duration = trackToPlay.info.length;
+                        track.artworkUrl = trackToPlay.info.artworkUrl || track.artworkUrl;
+                        track.title = trackToPlay.info.title;
+                        resolved = true;
+                        break;
+                    }
+                }
+            }
+            if (!resolved) {
+                console.warn(`[Player] Could not resolve track "${track.title}". Skipping to next.`);
+                return playNext(guildId, client);
+            }
+        } catch (resolveErr) {
+            console.error(`[Player] Error resolving track in playNext:`, resolveErr.message);
+            return playNext(guildId, client);
+        }
+    }
 
     try {
         if (queue.player) {
@@ -129,14 +195,7 @@ async function handleLoadFailed(guildId, client, failedTrack) {
 // --- Spotify / Apple Music helpers ---
 
 async function getSpotifyTrackName(url) {
-    try {
-        const res = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data.title || null;
-    } catch {
-        return null;
-    }
+    return PlaylistParser.getSpotifyTrackName(url);
 }
 
 async function getAppleMusicTrackName(url) {
@@ -189,12 +248,24 @@ async function getDeezerTrackName(url) {
 async function getYouTubeVideoTitle(url) {
     try {
         const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-        if (!res.ok) return null;
-        const data = await res.json();
-        return data.title || null;
-    } catch {
-        return null;
+        if (res.ok) {
+            const data = await res.json();
+            if (data.title) return data.title;
+        }
+    } catch (err) {
+        console.warn('[YouTube Title] Official oembed failed:', err.message);
     }
+    // Try noembed fallback (less restrictive for datacenter IPs)
+    try {
+        const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.title) return data.title;
+        }
+    } catch (err) {
+        console.warn('[YouTube Title] Noembed fallback failed:', err.message);
+    }
+    return null;
 }
 
 // --- Main command ---
@@ -299,6 +370,27 @@ module.exports = {
                                                 trackToPlay = result.data[0];
                                             }
                                             if (trackToPlay) {
+                                                // Redirect YouTube resolved tracks to SoundCloud during prefetch too
+                                                if (trackToPlay.info.uri && (trackToPlay.info.uri.includes('youtube.com') || trackToPlay.info.uri.includes('youtu.be'))) {
+                                                    console.log(`[Prefetch] Intercepted YouTube track "${trackToPlay.info.title}". Redirecting to SoundCloud search...`);
+                                                    const scSearchQuery = `scsearch:${trackToPlay.info.title}`;
+                                                    let scResolved = false;
+                                                    for (const scNode of nodes) {
+                                                        try {
+                                                            const scResult = await scNode.rest.resolve(scSearchQuery);
+                                                            if (scResult && scResult.loadType === 'search' && scResult.data && scResult.data.length > 0) {
+                                                                trackToPlay = scResult.data[0];
+                                                                scResolved = true;
+                                                                break;
+                                                            }
+                                                        } catch (err) {
+                                                            // ignore
+                                                        }
+                                                    }
+                                                    if (!scResolved) {
+                                                        // Fall back to original YouTube or skip
+                                                    }
+                                                }
                                                 nextTrack.encoded = trackToPlay.encoded;
                                                 nextTrack.url = trackToPlay.info.uri;
                                                 nextTrack.duration = trackToPlay.info.length;
@@ -398,14 +490,20 @@ module.exports = {
                     return interaction.followUp('❌ No tracks found in the playlist!');
                 }
 
-                const tracksInfo = tracks.map(t => ({
-                    title: t.info.title,
-                    url: t.info.uri,
-                    encoded: t.encoded,
-                    duration: t.info.length,
-                    artworkUrl: t.info.artworkUrl || null,
-                    nodeName: resolvedNode.name
-                }));
+                const tracksInfo = tracks.map(t => {
+                    const isYT = t.info.uri && (t.info.uri.includes('youtube.com') || t.info.uri.includes('youtu.be'));
+                    return {
+                        title: t.info.title,
+                        artist: t.info.author || '',
+                        url: isYT ? null : t.info.uri,
+                        query: isYT ? `${t.info.title} ${t.info.author || ''}` : null,
+                        encoded: isYT ? null : t.encoded,
+                        duration: t.info.length,
+                        artworkUrl: t.info.artworkUrl || null,
+                        isImported: isYT, // Forces resolving via SoundCloud in playNext/prefetch
+                        nodeName: resolvedNode.name
+                    };
+                });
 
                 const isAlreadyPlaying = !!queue.currentTrack;
                 queue.tracks.push(...tracksInfo);
@@ -434,6 +532,26 @@ module.exports = {
 
             if (!trackToPlay) {
                 return interaction.followUp('❌ No results found!');
+            }
+
+            // Redirect YouTube resolved tracks to SoundCloud to bypass geo-blocks/captchas
+            if (trackToPlay.info.uri && (trackToPlay.info.uri.includes('youtube.com') || trackToPlay.info.uri.includes('youtu.be'))) {
+                console.log(`[Player] Intercepted YouTube track "${trackToPlay.info.title}". Redirecting search to SoundCloud...`);
+                const scSearchQuery = `scsearch:${trackToPlay.info.title}`;
+                let scResult = null;
+                for (const node of orderedNodes) {
+                    try {
+                        scResult = await node.rest.resolve(scSearchQuery);
+                        if (scResult && scResult.loadType === 'search' && scResult.data && scResult.data.length > 0) {
+                            trackToPlay = scResult.data[0];
+                            resolvedNode = node;
+                            console.log(`[Player] Successfully redirected YouTube track to SoundCloud: "${trackToPlay.info.title}"`);
+                            break;
+                        }
+                    } catch (err) {
+                        console.log(`[Lavalink Error] Node ${node.name} failed resolving redirected SoundCloud track:`, err.message);
+                    }
+                }
             }
 
             const trackInfo = { 

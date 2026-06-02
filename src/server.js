@@ -270,7 +270,7 @@ function startServer(client) {
         try {
             // Helpers
             const getSpotifyTrackName = async (url) => {
-                try { const res = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`); return res.ok ? (await res.json()).title : null; } catch { return null; }
+                return PlaylistParser.getSpotifyTrackName(url);
             };
             const getAppleMusicTrackName = async (url) => {
                 try { const res = await fetch(`https://music.apple.com/oembed?url=${encodeURIComponent(url)}`); if (res.ok) return (await res.json()).title; const match = url.match(/\/album\/([^/]+)/); return match ? match[1].replace(/-/g, ' ') : null; } catch { return null; }
@@ -279,7 +279,25 @@ function startServer(client) {
                 try { const res = await fetch(`https://deezer.com/oembed?url=${encodeURIComponent(url)}`); return res.ok ? (await res.json()).title : null; } catch { return null; }
             };
             const getYouTubeVideoTitle = async (url) => {
-                try { const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`); return res.ok ? (await res.json()).title : null; } catch { return null; }
+                try {
+                    const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.title) return data.title;
+                    }
+                } catch (err) {
+                    console.warn('[Web YouTube Title] Official oembed failed:', err.message);
+                }
+                try {
+                    const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.title) return data.title;
+                    }
+                } catch (err) {
+                    console.warn('[Web YouTube Title] Noembed fallback failed:', err.message);
+                }
+                return null;
             };
 
             let finalQuery = query;
@@ -357,6 +375,26 @@ function startServer(client) {
             else if (result.loadType === 'search') track = result.data[0];
 
             if (!track) return res.status(404).json({ error: 'No tracks in result' });
+
+            // Redirect YouTube resolved tracks to SoundCloud to bypass geo-blocks/captchas
+            if (track.info.uri && (track.info.uri.includes('youtube.com') || track.info.uri.includes('youtu.be'))) {
+                console.log(`[Web Player] Intercepted YouTube track "${track.info.title}". Redirecting search to SoundCloud...`);
+                const scSearchQuery = `scsearch:${track.info.title}`;
+                let scResult = null;
+                for (const node of orderedNodes) {
+                    try {
+                        scResult = await node.rest.resolve(scSearchQuery);
+                        if (scResult && scResult.loadType === 'search' && scResult.data && scResult.data.length > 0) {
+                            track = scResult.data[0];
+                            resolvedNode = node;
+                            console.log(`[Web Player] Successfully redirected YouTube track to SoundCloud: "${track.info.title}"`);
+                            break;
+                        }
+                    } catch (err) {
+                        console.log(`[Web Player] Node ${node.name} failed resolving redirected SoundCloud track:`, err.message);
+                    }
+                }
+            }
 
             // Normalize track object
             const trackObj = {
