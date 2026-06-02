@@ -452,7 +452,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 
 .search-wrapper {
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
   flex-shrink: 0;
   margin-bottom: 16px;
   position: relative;
@@ -850,7 +850,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 
 .search-input {
   width: 100%;
-  padding: 14px 16px 14px 48px;
+  padding: 10px 16px 10px 48px;
   background: transparent;
   border: none;
   color: var(--text-main);
