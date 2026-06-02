@@ -452,7 +452,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 
 .search-wrapper {
   width: 100%;
-  max-width: 500px;
+  max-width: 420px;
   flex-shrink: 0;
   margin-bottom: 16px;
   position: relative;
@@ -815,7 +815,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   width: 100%;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
+  border-radius: 99px;
   backdrop-filter: var(--blur-medium);
   -webkit-backdrop-filter: var(--blur-medium);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
