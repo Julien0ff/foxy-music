@@ -246,6 +246,29 @@ client.on('error', (error) => {
     console.error('❌ Discord Client Error:', error);
 });
 
+client.on('voiceStateUpdate', (oldState, newState) => {
+    const guildId = oldState.guild.id || newState.guild.id;
+    if (global.io) {
+        const guild = client.guilds.cache.get(guildId);
+        if (guild) {
+            const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
+            const channelsData = voiceChannels.map(c => {
+                return {
+                    id: c.id,
+                    name: c.name,
+                    members: c.members.map(m => ({
+                        id: m.id,
+                        name: m.user.globalName || m.user.username,
+                        avatar: m.user.displayAvatarURL({ extension: 'png' })
+                    }))
+                };
+            });
+            const botVoiceChannel = guild.members.me?.voice?.channelId || null;
+            global.io.to(`queue_${guildId}`).emit('voice_update', { channels: channelsData, botVoiceChannel });
+        }
+    }
+});
+
 // Graceful shutdown
 const shutdown = async () => {
     console.log('🦊 Stopping bot gracefully...');

@@ -305,7 +305,8 @@ module.exports = {
                     player = await interaction.client.shoukaku.joinVoiceChannel({
                         guildId: interaction.guild.id,
                         channelId: channel.id,
-                        shardId: 0
+                        shardId: 0,
+                        deaf: true
                     });
 
                     queue.player = player;

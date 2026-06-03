@@ -145,7 +145,8 @@ function startServer(client) {
                 const player = await client.shoukaku.joinVoiceChannel({
                     guildId: guildId,
                     channelId: channelId,
-                    shardId: 0
+                    shardId: 0,
+                    deaf: true
                 });
                 queue.player = player;
                 
@@ -440,7 +441,8 @@ function startServer(client) {
                                 player = await client.shoukaku.joinVoiceChannel({
                                     guildId: guildId,
                                     channelId: targetChannel.id,
-                                    shardId: 0
+                                    shardId: 0,
+                                    deaf: true
                                 });
                                 queue.player = player;
                                 
@@ -554,6 +556,80 @@ function startServer(client) {
         res.status(400).json({ error: 'No active player or invalid volume' });
     });
 
+    app.post('/api/guilds/:id/queue/remove', (req, res) => {
+        const guildId = req.params.id;
+        const { index } = req.body;
+        const queue = global.queues ? global.queues.get(guildId) : null;
+        if (!queue || index === undefined || index < 0 || index >= queue.tracks.length) {
+            return res.status(400).json({ error: 'Index invalide ou file d\'attente introuvable' });
+        }
+        const removed = queue.tracks.splice(index, 1)[0];
+        
+        if (global.io) {
+            global.io.to(`queue_${guildId}`).emit('queue_update', {
+                currentTrack: queue.currentTrack,
+                tracks: queue.tracks,
+                isPlaying: queue.player && !queue.player.paused,
+                position: queue.player ? queue.player.position : 0,
+                duration: queue.currentTrack ? queue.currentTrack.duration || 0 : 0,
+                volume: queue.volume || 100,
+                loop: queue.loop || false
+            });
+        }
+        updatePanel(client, guildId);
+        return res.json({ success: true, removed });
+    });
+
+    app.post('/api/guilds/:id/queue/clear', (req, res) => {
+        const guildId = req.params.id;
+        const queue = global.queues ? global.queues.get(guildId) : null;
+        if (!queue) return res.status(400).json({ error: 'File d\'attente active introuvable' });
+        
+        queue.tracks = [];
+        
+        if (global.io) {
+            global.io.to(`queue_${guildId}`).emit('queue_update', {
+                currentTrack: queue.currentTrack,
+                tracks: queue.tracks,
+                isPlaying: queue.player && !queue.player.paused,
+                position: queue.player ? queue.player.position : 0,
+                duration: queue.currentTrack ? queue.currentTrack.duration || 0 : 0,
+                volume: queue.volume || 100,
+                loop: queue.loop || false
+            });
+        }
+        updatePanel(client, guildId);
+        return res.json({ success: true });
+    });
+
+    app.post('/api/guilds/:id/queue/shuffle', (req, res) => {
+        const guildId = req.params.id;
+        const queue = global.queues ? global.queues.get(guildId) : null;
+        if (!queue || queue.tracks.length === 0) {
+            return res.status(400).json({ error: 'La file d\'attente est vide' });
+        }
+        
+        // Fisher-Yates Shuffle
+        for (let i = queue.tracks.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [queue.tracks[i], queue.tracks[j]] = [queue.tracks[j], queue.tracks[i]];
+        }
+        
+        if (global.io) {
+            global.io.to(`queue_${guildId}`).emit('queue_update', {
+                currentTrack: queue.currentTrack,
+                tracks: queue.tracks,
+                isPlaying: queue.player && !queue.player.paused,
+                position: queue.player ? queue.player.position : 0,
+                duration: queue.currentTrack ? queue.currentTrack.duration || 0 : 0,
+                volume: queue.volume || 100,
+                loop: queue.loop || false
+            });
+        }
+        updatePanel(client, guildId);
+        return res.json({ success: true });
+    });
+
     // --- Lyrics ---
     app.get('/api/guilds/:id/lyrics', async (req, res) => {
         const guildId = req.params.id;
@@ -618,7 +694,8 @@ function startServer(client) {
                                 player = await client.shoukaku.joinVoiceChannel({
                                     guildId: guildId,
                                     channelId: targetChannel.id,
-                                    shardId: 0
+                                    shardId: 0,
+                                    deaf: true
                                 });
                                 queue.player = player;
                                 

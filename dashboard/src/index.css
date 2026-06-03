@@ -1165,3 +1165,96 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* Interactive Queue Header and Actions */
+.queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.queue-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.queue-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.queue-action-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.queue-action-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+.queue-action-btn:active {
+  transform: scale(0.95);
+}
+
+.queue-action-btn.clear-btn:hover {
+  background: rgba(237, 66, 69, 0.15);
+  border-color: rgba(237, 66, 69, 0.3);
+  color: #ed4245;
+}
+
+/* Individual track remove button */
+.queue-item {
+  position: relative;
+  overflow: hidden;
+  padding-right: 40px !important; /* Make room for the delete button */
+}
+
+.queue-item-remove-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.9);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-item:hover .queue-item-remove-btn {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+.queue-item-remove-btn:hover {
+  background: rgba(237, 66, 69, 0.15);
+  color: #ed4245;
+}

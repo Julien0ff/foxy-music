@@ -206,6 +206,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchInputRef = useRef(null);
+  const volumeDebounceRef = useRef(null);
 
   const handleSearchSubmit = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -366,18 +367,25 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   };
 
-  const handleVolumeChange = async (e) => {
+  const handleVolumeChange = (e) => {
     const newVol = parseInt(e.target.value);
     setQueueState(prev => ({ ...prev, volume: newVol }));
-    try {
-      await fetch(`${API_URL}/api/guilds/${guildId}/volume`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ volume: newVol })
-      });
-    } catch (e) {
-      console.error(e);
+    
+    if (volumeDebounceRef.current) {
+      clearTimeout(volumeDebounceRef.current);
     }
+    
+    volumeDebounceRef.current = setTimeout(async () => {
+      try {
+        await fetch(`${API_URL}/api/guilds/${guildId}/volume`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ volume: newVol })
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }, 250);
   };
 
   const handleSeek = useCallback(async (timeMs) => {

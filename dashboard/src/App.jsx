@@ -72,6 +72,7 @@ function App() {
   const [sharedGuilds, setSharedGuilds] = useState([]);
   const [selectedGuildId, setSelectedGuildId] = useState(null);
   const [lyricsMode, setLyricsMode] = useState(false);
+  const [voiceData, setVoiceData] = useState({ channels: [], botVoiceChannel: null });
   
   // Settings and Playlist Import States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -215,6 +216,15 @@ function App() {
       })
       .catch(err => console.error("Failed to fetch initial queue:", err));
 
+    fetch(`${API_URL}/api/guilds/${selectedGuildId}/voice`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && !data.error) {
+          setVoiceData(data);
+        }
+      })
+      .catch(err => console.error("Failed to fetch initial voice state:", err));
+
     const socket = io(API_URL);
 
     socket.on('connect', () => {
@@ -232,6 +242,10 @@ function App() {
         volume: data.volume || 100,
         loop: data.loop || false
       });
+    });
+
+    socket.on('voice_update', (data) => {
+      setVoiceData(data);
     });
 
     return () => socket.disconnect();
@@ -306,7 +320,40 @@ function App() {
       setIsImporting(false);
     }
   };
+  const handleRemoveTrack = async (index) => {
+    if (!selectedGuildId) return;
+    try {
+      await fetch(`${API_URL}/api/guilds/${selectedGuildId}/queue/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
+  const handleClearQueue = async () => {
+    if (!selectedGuildId) return;
+    try {
+      await fetch(`${API_URL}/api/guilds/${selectedGuildId}/queue/clear`, {
+        method: 'POST'
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleShuffleQueue = async () => {
+    if (!selectedGuildId) return;
+    try {
+      await fetch(`${API_URL}/api/guilds/${selectedGuildId}/queue/shuffle`, {
+        method: 'POST'
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
   if (activePage === 'terms') {
     return <TermsOfService />;
   }
@@ -370,7 +417,7 @@ function App() {
             <div className={`dashboard-grid ${lyricsMode ? 'lyrics-active-grid' : ''}`}>
               <div className="left-column">
                 <VoiceChannels 
-                  guildId={selectedGuildId} 
+                  voiceData={voiceData}
                   onConnect={handleConnectBot} 
                 />
               </div>
@@ -400,7 +447,12 @@ function App() {
               {!lyricsMode && (
                 <div className="right-column">
                   <div className="queue-wrapper">
-                    <QueueList tracks={queueState.tracks} />
+                    <QueueList 
+                      tracks={queueState.tracks} 
+                      onRemoveTrack={handleRemoveTrack}
+                      onClearQueue={handleClearQueue}
+                      onShuffleQueue={handleShuffleQueue}
+                    />
                   </div>
                 </div>
               )}

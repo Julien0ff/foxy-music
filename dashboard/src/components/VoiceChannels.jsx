@@ -1,33 +1,7 @@
-import { useEffect, useState } from 'react';
 import { Headphones } from 'lucide-react';
-import { API_URL } from '../config';
 
-export default function VoiceChannels({ guildId, onConnect }) {
-  const [voiceData, setVoiceData] = useState({ channels: [], botVoiceChannel: null });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!guildId) return;
-    
-    const fetchVoice = async () => {
-      try {
-        const res = await fetch(`${API_URL}/api/guilds/${guildId}/voice`);
-        const data = await res.json();
-        if (data && !data.error) {
-          setVoiceData(data);
-        }
-      } catch (e) {
-        console.error('Error fetching voice channels:', e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchVoice();
-    const interval = setInterval(fetchVoice, 5000); // Polling for now
-    
-    return () => clearInterval(interval);
-  }, [guildId]);
+export default function VoiceChannels({ voiceData, onConnect }) {
+  const loading = !voiceData || !voiceData.channels;
 
   if (loading) return <div className="voice-channels-loading">Chargement des salons vocaux...</div>;
 
