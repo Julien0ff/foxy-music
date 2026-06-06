@@ -10,7 +10,10 @@ function getQueue(guildId) {
         global.queues.set(guildId, {
             tracks: [],
             currentTrack: null,
-            player: null
+            player: null,
+            history: [],
+            autoplay: false,
+            leaveTimeout: null
         });
     }
     return global.queues.get(guildId);
@@ -20,21 +23,88 @@ async function playNext(guildId, client) {
     const queue = getQueue(guildId);
     queue.prefetchedNext = false; // Reset background prefetch flag
 
+    if (queue.currentTrack && !queue.loop) {
+        if (!queue.history) queue.history = [];
+        queue.history.push(queue.currentTrack);
+        if (queue.history.length > 15) queue.history.shift();
+    }
+
     if (queue.loop && queue.currentTrack) {
         // If loop is enabled, put the current track at the beginning of the queue to play it again
         queue.tracks.unshift(queue.currentTrack);
     }
 
     if (queue.tracks.length === 0) {
-        queue.currentTrack = null;
-        if (queue.player) {
-            console.log(`[Player] Queue is empty. Leaving voice channel for guild: ${guildId}`);
-            client.shoukaku.leaveVoiceChannel(guildId);
-            queue.player = null;
+        const config = require('../utils/db').getGuildConfig(guildId);
+        
+        if (queue.autoplay && queue.history && queue.history.length > 0) {
+            console.log(`[Autoplay] Queue empty, fetching related track for guild: ${guildId}`);
+            const lastTrack = queue.history[queue.history.length - 1];
+            const searchQuery = `scsearch:${lastTrack.artist || lastTrack.title}`;
+            
+            try {
+                const nodes = Array.from(client.shoukaku.nodes.values());
+                let autoplayTrack = null;
+                for (const node of nodes) {
+                    const result = await node.rest.resolve(searchQuery);
+                    if (result && result.loadType === 'search' && result.data && result.data.length > 0) {
+                        // Find a track that isn't already in history
+                        for (const t of result.data) {
+                            if (!queue.history.find(h => h.title === t.info.title)) {
+                                autoplayTrack = t;
+                                break;
+                            }
+                        }
+                        // Fallback to first if all played
+                        if (!autoplayTrack) autoplayTrack = result.data[0];
+                        if (autoplayTrack) break;
+                    }
+                }
+
+                if (autoplayTrack) {
+                    queue.tracks.push({
+                        title: autoplayTrack.info.title,
+                        url: autoplayTrack.info.uri,
+                        encoded: autoplayTrack.encoded,
+                        duration: autoplayTrack.info.length,
+                        artworkUrl: autoplayTrack.info.artworkUrl || null,
+                        nodeName: nodes[0].name
+                    });
+                    console.log(`[Autoplay] Added: ${autoplayTrack.info.title}`);
+                }
+            } catch (err) {
+                console.error('[Autoplay Error]', err);
+            }
         }
-        global.queues.delete(guildId);
-        if (client) updatePanel(client, guildId);
-        return null;
+        
+        // Check again if tracks are still empty after attempting autoplay
+        if (queue.tracks.length === 0) {
+            queue.currentTrack = null;
+            console.log(`[Player] Queue is empty for guild: ${guildId}. Waiting for new tracks.`);
+            if (client) updatePanel(client, guildId);
+            
+            if (!config.twentyFourSeven) {
+                if (queue.leaveTimeout) clearTimeout(queue.leaveTimeout);
+                queue.leaveTimeout = setTimeout(() => {
+                    const checkQueue = global.queues.get(guildId);
+                    if (checkQueue && checkQueue.tracks.length === 0 && !checkQueue.currentTrack && checkQueue.player) {
+                        console.log(`[Player] Inactivity timeout reached. Leaving voice channel for guild: ${guildId}`);
+                        try {
+                            client.shoukaku.leaveVoiceChannel(guildId);
+                            checkQueue.player = null;
+                            global.queues.delete(guildId);
+                            updatePanel(client, guildId);
+                        } catch (e) {}
+                    }
+                }, 5 * 60 * 1000); // 5 minutes timeout
+            }
+            return null;
+        }
+    }
+    
+    if (queue.leaveTimeout) {
+        clearTimeout(queue.leaveTimeout);
+        queue.leaveTimeout = null;
     }
 
     const track = queue.tracks.shift();

@@ -630,6 +630,46 @@ function startServer(client) {
         return res.json({ success: true });
     });
 
+    app.post('/api/guilds/:id/filter', async (req, res) => {
+        const guildId = req.params.id;
+        const queue = global.queues ? global.queues.get(guildId) : null;
+        if (!queue || !queue.player) {
+            return res.status(400).json({ error: 'Aucune musique en cours' });
+        }
+
+        const { filter } = req.body; // 'bassboost', 'nightcore', 'vaporwave', '8d', 'karaoke', 'clear'
+        
+        try {
+            if (filter === 'clear') {
+                await queue.player.clearFilters();
+            } else if (filter === 'bassboost') {
+                await queue.player.setFilters({
+                    equalizer: [
+                        { band: 0, gain: 0.65 }, { band: 1, gain: 0.45 }, { band: 2, gain: -0.45 },
+                        { band: 3, gain: -0.65 }, { band: 4, gain: -0.35 }, { band: 5, gain: 0.45 },
+                        { band: 6, gain: 0.55 }, { band: 7, gain: 0.6 }, { band: 8, gain: 0.6 },
+                        { band: 9, gain: 0.6 }
+                    ]
+                });
+            } else if (filter === 'nightcore') {
+                await queue.player.setFilters({ timescale: { speed: 1.2, pitch: 1.2, rate: 1.0 } });
+            } else if (filter === 'vaporwave') {
+                await queue.player.setFilters({
+                    timescale: { speed: 0.8, pitch: 0.8, rate: 1.0 },
+                    tremolo: { depth: 0.3, frequency: 14.0 }
+                });
+            } else if (filter === '8d') {
+                await queue.player.setFilters({ rotation: { rotationHz: 0.2 } });
+            } else if (filter === 'karaoke') {
+                await queue.player.setFilters({ karaoke: { level: 1.0, monoLevel: 1.0, filterBand: 220.0, filterWidth: 100.0 } });
+            }
+            return res.json({ success: true });
+        } catch (err) {
+            console.error(err);
+            return res.status(500).json({ error: 'Erreur filtre' });
+        }
+    });
+
     // --- Lyrics ---
     app.get('/api/guilds/:id/lyrics', async (req, res) => {
         const guildId = req.params.id;

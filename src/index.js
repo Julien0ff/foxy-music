@@ -5,10 +5,11 @@ const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord
 const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
+    // --- Reliable nodes (confirmed v4) ---
     {
-        name: 'Jirayu-13592',
-        url: 'lavalink.jirayu.net:13592',
-        auth: 'youshallnotpass',
+        name: 'HeavenCloud',
+        url: '89.106.84.59:4000',
+        auth: 'heavencloud.in',
         secure: false
     },
     {
@@ -18,21 +19,9 @@ const Nodes = [
         secure: false
     },
     {
-        name: 'G3V',
-        url: 'lava.g3v.co.uk:9008',
-        auth: 'lavalinklol',
-        secure: false
-    },
-    {
         name: 'TriniumHost-4333',
         url: 'lavalink.triniumhost.com:4333',
         auth: 'free',
-        secure: false
-    },
-    {
-        name: 'TriniumHost-2333',
-        url: 'lavalink.triniumhost.com:2333',
-        auth: 'kirito',
         secure: false
     },
     {
@@ -42,23 +31,18 @@ const Nodes = [
         secure: false
     },
     {
+        name: 'NyxBot-SG',
+        url: 'sg1-nodelink.nyxbot.app:3000',
+        auth: 'nyxbot.app/support',
+        secure: false
+    },
+    // --- SSL nodes ---
+    {
         name: 'Serenetia-SSL',
         url: 'lavalinkv4.serenetia.com:443',
         auth: 'https://seretia.link/discord',
         secure: true
     },
-    {
-        name: 'Jirayu-SSL',
-        url: 'lavalink.jirayu.net:443',
-        auth: 'youshallnotpass',
-        secure: true
-    },
-//    {
-//        name: 'MilloHost-SSL',
-//        url: 'lava-v4.millohost.my.id:443',
-//        auth: 'https://discord.gg/mjS5J2K3ep',
-//        secure: true
-//    },
     {
         name: 'TriniumHost-SSL',
         url: 'lavalink-v4.triniumhost.com:443',

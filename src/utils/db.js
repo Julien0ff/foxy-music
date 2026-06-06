@@ -10,16 +10,18 @@ if (!fs.existsSync(DATA_DIR)) {
 }
 
 if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify({ guilds: {} }, null, 2));
+    fs.writeFileSync(DB_FILE, JSON.stringify({ guilds: {}, users: {} }, null, 2));
 }
 
 function readDB() {
     try {
         const data = fs.readFileSync(DB_FILE, 'utf-8');
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        if (!parsed.users) parsed.users = {};
+        return parsed;
     } catch (e) {
         console.error('Error reading db.json:', e);
-        return { guilds: {} };
+        return { guilds: {}, users: {} };
     }
 }
 
@@ -39,6 +41,8 @@ function getGuildConfig(guildId) {
             panelMessageId: null,
             prefix: '/',
             language: 'fr',
+            djRoleId: null,
+            twentyFourSeven: false,
             stats: {
                 totalMessages: 0,
                 totalMusicPlayed: 0
@@ -46,6 +50,10 @@ function getGuildConfig(guildId) {
         };
         writeDB(db);
     }
+    // Assure defaults are present on existing configs
+    if (db.guilds[guildId].djRoleId === undefined) db.guilds[guildId].djRoleId = null;
+    if (db.guilds[guildId].twentyFourSeven === undefined) db.guilds[guildId].twentyFourSeven = false;
+    
     return db.guilds[guildId];
 }
 
@@ -57,6 +65,8 @@ function updateGuildConfig(guildId, updates) {
             panelMessageId: null,
             prefix: '/',
             language: 'fr',
+            djRoleId: null,
+            twentyFourSeven: false,
             stats: {
                 totalMessages: 0,
                 totalMusicPlayed: 0
@@ -68,7 +78,43 @@ function updateGuildConfig(guildId, updates) {
     return db.guilds[guildId];
 }
 
+// User Playlists
+function getUserPlaylists(userId) {
+    const db = readDB();
+    if (!db.users[userId]) {
+        db.users[userId] = { playlists: {} };
+        writeDB(db);
+    }
+    return db.users[userId].playlists || {};
+}
+
+function updateUserPlaylist(userId, playlistName, tracks) {
+    const db = readDB();
+    if (!db.users[userId]) {
+        db.users[userId] = { playlists: {} };
+    }
+    if (!db.users[userId].playlists) {
+        db.users[userId].playlists = {};
+    }
+    db.users[userId].playlists[playlistName] = tracks;
+    writeDB(db);
+    return db.users[userId].playlists[playlistName];
+}
+
+function deleteUserPlaylist(userId, playlistName) {
+    const db = readDB();
+    if (db.users[userId] && db.users[userId].playlists && db.users[userId].playlists[playlistName]) {
+        delete db.users[userId].playlists[playlistName];
+        writeDB(db);
+        return true;
+    }
+    return false;
+}
+
 module.exports = {
     getGuildConfig,
-    updateGuildConfig
+    updateGuildConfig,
+    getUserPlaylists,
+    updateUserPlaylist,
+    deleteUserPlaylist
 };

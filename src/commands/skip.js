@@ -1,4 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
+const { checkDJ } = require('../utils/dj');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,6 +11,8 @@ module.exports = {
         }
 
         const queue = global.queues.get(interaction.guild.id);
+        if (!checkDJ(interaction, queue)) return interaction.reply({ content: '❌ Vous devez être DJ pour utiliser cette commande.', ephemeral: true });
+        
         if (!queue.player) {
             return interaction.reply({ content: 'There is no music playing right now!', ephemeral: true });
         }
