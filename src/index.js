@@ -7,6 +7,12 @@ const { Shoukaku, Connectors } = require('shoukaku');
 const Nodes = [
     // --- Reliable nodes (confirmed v4) ---
     {
+        name: 'Mon Lavalink Privé',
+        url: 'prem-eu3.bot-hosting.net:20626',
+        auth: 'youshallnotpass',
+        secure: false
+    },
+    {
         name: 'Serenetia-80',
         url: 'lavalinkv4.serenetia.com:80',
         auth: 'https://seretia.link/discord',
@@ -80,7 +86,7 @@ if (fs.existsSync(commandsPath)) {
 
 client.once('ready', () => {
     console.log(`🦊 Foxy is online! Logged in as ${client.user.tag}`);
-    
+
     // Configuration de la présence du bot
     const serverCount = client.guilds.cache.size;
     client.user.setPresence({
@@ -100,7 +106,7 @@ client.once('ready', () => {
 client.on('interactionCreate', async interaction => {
     if (interaction.isButton()) {
         const queue = global.queues ? global.queues.get(interaction.guild.id) : null;
-        
+
         if (!queue || !queue.player) {
             return interaction.reply({ content: '❌ Aucune musique en cours.', ephemeral: true });
         }
@@ -220,6 +226,27 @@ client.on('error', (error) => {
 
 client.on('voiceStateUpdate', (oldState, newState) => {
     const guildId = oldState.guild.id || newState.guild.id;
+
+    // Handle bot being manually disconnected by a user
+    if (oldState.member.id === client.user.id && oldState.channelId && !newState.channelId) {
+        console.log(`[Voice] Bot was manually disconnected from guild ${guildId}`);
+        const queue = global.queues ? global.queues.get(guildId) : null;
+        if (queue && queue.player) {
+            try {
+                // Destroy the player gracefully
+                client.shoukaku.leaveVoiceChannel(guildId).catch(() => { });
+                queue.player = null;
+                queue.currentTrack = null;
+                // Optional: clear the queue or keep tracks if they want to resume later
+                queue.tracks = [];
+            } catch (e) {
+                console.error(`[Voice] Error handling bot disconnect:`, e);
+            }
+            const { updatePanel } = require('./utils/panelUpdater');
+            updatePanel(client, guildId);
+        }
+    }
+
     if (global.io) {
         const guild = client.guilds.cache.get(guildId);
         if (guild) {
