@@ -653,8 +653,12 @@
   background: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+  border-radius: 99px; /* Rounded Apple Music style */
   margin-bottom: 0;
+  width: 100%;
+  max-width: 500px; /* Longer search bar */
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .search-form {

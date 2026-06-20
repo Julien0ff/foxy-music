@@ -10,99 +10,6 @@ const getYoutubeThumbnail = (url) => {
   return null;
 };
 
-/**
- * Nettoie un titre pour la recherche de paroles (retire les parasites YouTube)
- */
-function cleanForSearch(str) {
-  if (!str) return '';
-  return str
-    .replace(/\(.*?\)/g, '')   // (Official Video), (Lyrics), etc.
-    .replace(/\[.*?\]/g, '')   // [HD], [4K], etc.
-    .replace(/【.*?】/g, '')    // crochets japonais
-    .replace(/official\s*(music)?\s*(video|audio|lyric)/gi, '')
-    .replace(/\blyrics?\b/gi, '')
-    .replace(/\bft\.?\s+|\bfeat\.?\s+/gi, '')
-    .replace(/\bhq\b|\bhd\b/gi, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
-/**
- * Parse le format LRC en tableau [{ time (ms), text }]
- */
-function parseLrc(lrcText) {
-  if (!lrcText) return [];
-  const lines = [];
-  const lineRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
-  for (const rawLine of lrcText.split('\n')) {
-    const match = rawLine.match(lineRegex);
-    if (!match) continue;
-    const minutes = parseInt(match[1], 10);
-    const seconds = parseInt(match[2], 10);
-    const ms = parseInt(match[3].padEnd(3, '0'), 10);
-    const time = (minutes * 60 + seconds) * 1000 + ms;
-    const text = match[4].trim();
-    if (text) lines.push({ time, text });
-  }
-  return lines.sort((a, b) => a.time - b.time);
-}
-
-/**
- * Recherche les paroles directement depuis le navigateur via LrcLib
- * Essaie d'abord avec artiste+titre séparés, puis avec le titre complet.
- */
-async function fetchLyricsClient(trackTitle) {
-  if (!trackTitle) return null;
-  const LRCLIB = 'https://lrclib.net/api';
-  const HEADERS = { 'User-Agent': 'Foxy Music Dashboard (https://github.com/Julien0ff/foxy-music)' };
-
-  // Sépare "Artiste - Titre" si le tiret est présent
-  let artist = '';
-  let title;
-  const dashIdx = trackTitle.indexOf(' - ');
-  if (dashIdx !== -1) {
-    artist = cleanForSearch(trackTitle.slice(0, dashIdx));
-    title  = cleanForSearch(trackTitle.slice(dashIdx + 3));
-  } else {
-    title = cleanForSearch(trackTitle);
-  }
-
-  // Tentative 1 : recherche structurée avec artiste séparé
-  if (artist) {
-    try {
-      const r = await fetch(`${LRCLIB}/search?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`, { headers: HEADERS });
-      if (r.ok) {
-        const results = await r.json();
-        const best = results.find(x => x.syncedLyrics) || results.find(x => x.plainLyrics);
-        if (best) return {
-          title: best.trackName || title,
-          artist: best.artistName || artist,
-          plain: best.plainLyrics || null,
-          synced: best.syncedLyrics ? parseLrc(best.syncedLyrics) : []
-        };
-      }
-    } catch { /* ignore */ }
-  }
-
-  // Tentative 2 : recherche texte libre avec titre nettoyé
-  const query = artist ? `${artist} ${title}` : title;
-  try {
-    const r = await fetch(`${LRCLIB}/search?q=${encodeURIComponent(query)}`, { headers: HEADERS });
-    if (r.ok) {
-      const results = await r.json();
-      const best = results.find(x => x.syncedLyrics) || results.find(x => x.plainLyrics);
-      if (best) return {
-        title: best.trackName || title,
-        artist: best.artistName || artist,
-        plain: best.plainLyrics || null,
-        synced: best.syncedLyrics ? parseLrc(best.syncedLyrics) : []
-      };
-    }
-  } catch { /* ignore */ }
-
-  return null;
-}
-
 function formatTime(ms) {
   if (!ms || isNaN(ms)) return '0:00';
   const seconds = Math.floor(ms / 1000);
@@ -199,7 +106,6 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const [lyrics, setLyrics] = useState(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsTrackUrl, setLyricsTrackUrl] = useState(null);
-  const [lyricsOffset, setLyricsOffset] = useState(0); // Offset in seconds (+/-)
 
   // Expandable Search in Lyrics state
   const [searchQuery, setSearchQuery] = useState('');
@@ -263,7 +169,6 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     setLastTrackUrl(currentTrack?.url);
     setLocalProgress(serverPosition || 0);
     setAnimateCover(true);
-    setLyricsOffset(0); // Reset sync offset on song change
     // Invalide les paroles chargées si la piste change
     if (lyricsTrackUrl !== currentTrack?.url) {
       setLyrics(null);
@@ -306,10 +211,15 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
         }
       });
 
-      fetchLyricsClient(currentTrack.title)
+      fetch(`${API_URL}/api/guilds/${guildId}/lyrics`)
+        .then(res => res.json())
         .then(data => {
           if (active) {
-            setLyrics(data);
+            if (!data.error) {
+              setLyrics(data);
+            } else {
+              setLyrics(null);
+            }
             setLyricsTrackUrl(currentTrack.url);
           }
         })
@@ -446,12 +356,24 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
           >
              <Repeat size={24} />
           </button>
+          
+          <button 
+            className="control-btn" 
+            onClick={() => handleSeek(0)} 
+            disabled={!currentTrack}
+            title="Recommencer au début"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+          </button>
+
           <button className="control-btn play-pause-btn" onClick={handlePauseResume} disabled={!currentTrack}>
             {isPlaying ? <Pause size={32} /> : <Play size={32} style={{ marginLeft: '4px' }} />}
           </button>
+
           <button className="control-btn" onClick={handleSkip} disabled={!currentTrack}>
             <SkipForward size={28} />
           </button>
+
           <button
             className={`control-btn lyrics-btn ${showLyrics ? 'active-lyrics' : ''}`}
             onClick={handleLyricsToggle}
@@ -492,35 +414,11 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
             )}
 
             <div className="lyrics-top-controls">
-              {/* Lyrics Offset timing tuner */}
-              {lyrics && lyrics.synced && lyrics.synced.length > 0 && (
-                <div className="lyrics-sync-tuner">
-                  <button 
-                    className="lyrics-sync-btn"
-                    onClick={() => setLyricsOffset(prev => prev - 0.5)}
-                    title="Avancer les paroles (-0.5s)"
-                  >
-                    -
-                  </button>
-                  <span className="lyrics-sync-value">
-                    {lyricsOffset === 0 ? 'Synchro : 0s' : `Synchro : ${lyricsOffset > 0 ? '+' : ''}${lyricsOffset}s`}
-                  </span>
-                  <button 
-                    className="lyrics-sync-btn"
-                    onClick={() => setLyricsOffset(prev => prev + 0.5)}
-                    title="Retarder les paroles (+0.5s)"
-                  >
-                    +
-                  </button>
-                </div>
-              )}
-
-              {/* Expandable Search Button */}
               <div className={`lyrics-search-wrapper ${searchExpanded ? 'expanded' : ''}`}>
                 <form onSubmit={handleSearchSubmit} className="lyrics-search-form">
                   <input
                     type="text"
-                    placeholder="Rechercher ou coller un lien..."
+                    placeholder="Ex: Titre - Artiste..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     disabled={searchLoading}
@@ -544,7 +442,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
           </div>
           <LyricsView
             lyrics={lyrics}
-            currentTimeMs={localProgress + (lyricsOffset * 1000)}
+            currentTimeMs={localProgress}
             onSeek={handleSeek}
             isLoading={lyricsLoading}
           />

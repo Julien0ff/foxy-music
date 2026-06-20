@@ -769,14 +769,29 @@ function startServer(client) {
             if (!node) throw new Error('Aucun nœud Lavalink disponible.');
             
             const lavalinkResult = await node.rest.resolve(url);
-            if (!lavalinkResult || lavalinkResult.loadType === 'empty' || lavalinkResult.loadType === 'error') {
-                throw new Error('Impossible de charger cette playlist. As-tu bien installé le plugin LavaSrc sur ton Lavalink ?');
+            const loadType = lavalinkResult?.loadType?.toLowerCase();
+            
+            if (!lavalinkResult || loadType === 'empty' || loadType === 'error') {
+                throw new Error('Impossible de charger ce lien. Assure-toi que c\'est un lien valide (Spotify, Apple Music, etc.).');
             }
             
-            const tracks = (lavalinkResult.data?.tracks || lavalinkResult.data || []);
+            // Handle both playlist (data.tracks) and single track (data) or search array (data)
+            let rawTracks = [];
+            let playlistName = 'Importation';
+            
+            if (loadType === 'playlist') {
+                rawTracks = lavalinkResult.data.tracks || [];
+                playlistName = lavalinkResult.data.info?.name || 'Playlist Importée';
+            } else if (Array.isArray(lavalinkResult.data)) {
+                rawTracks = lavalinkResult.data;
+            } else if (lavalinkResult.data && lavalinkResult.data.info) {
+                rawTracks = [lavalinkResult.data];
+                playlistName = lavalinkResult.data.info.title || 'Titre Importé';
+            }
+            
             let result = {
-                name: lavalinkResult.data?.info?.name || 'Playlist Importée',
-                tracks: tracks.map(t => ({
+                name: playlistName,
+                tracks: rawTracks.map(t => ({
                     title: t.info?.title || 'Unknown',
                     artist: t.info?.author || 'Unknown',
                     duration: t.info?.length || 0,
