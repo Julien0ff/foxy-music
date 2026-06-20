@@ -1096,7 +1096,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 
 .settings-card {
   width: 90%;
-  max-width: 520px;
+  max-width: 650px;
   background: rgba(20, 20, 20, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
@@ -1241,6 +1241,10 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   height: 20px;
   object-fit: contain;
   pointer-events: none;
+}
+
+.apple-icon {
+  filter: invert(1);
 }
 
 .playlist-import-input {
@@ -1485,6 +1489,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 /* Range Slider */
 .volume-slider {
   -webkit-appearance: none;
+  appearance: none;
   width: 120px;
   height: 6px;
   background: rgba(255, 255, 255, 0.1);

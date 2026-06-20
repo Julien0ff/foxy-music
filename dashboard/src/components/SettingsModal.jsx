@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, X, Loader2, Music, Save, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Settings, X, Loader2, Save, CheckCircle2, AlertCircle } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -108,11 +108,11 @@ export default function SettingsModal({ onClose, selectedGuildId }) {
     };
 
     const getPlatformIcon = (url) => {
-        if (url.includes('spotify.com')) return 'https://storage.googleapis.com/pr-newsroom-wp/1/2018/11/Spotify_Logo_RGB_Green.png';
-        if (url.includes('youtube.com') || url.includes('youtu.be')) return 'https://upload.wikimedia.org/wikipedia/commons/b/b8/YouTube_Logo_2017.svg';
-        if (url.includes('deezer.com')) return 'https://upload.wikimedia.org/wikipedia/commons/d/db/Deezer_logo.svg';
-        if (url.includes('soundcloud.com')) return 'https://upload.wikimedia.org/wikipedia/commons/a/a2/SoundCloud_logo.svg';
-        if (url.includes('music.apple.com')) return 'https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg';
+        if (url.includes('spotify.com')) return { src: 'https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg', className: 'platform-icon' };
+        if (url.includes('youtube.com') || url.includes('youtu.be')) return { src: 'https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg', className: 'platform-icon' };
+        if (url.includes('deezer.com')) return { src: 'https://cdn-icons-png.flaticon.com/512/5968/5968817.png', className: 'platform-icon' }; // Alternative deezer icon
+        if (url.includes('soundcloud.com')) return { src: 'https://upload.wikimedia.org/wikipedia/commons/a/a2/SoundCloud_logo.svg', className: 'platform-icon' };
+        if (url.includes('music.apple.com')) return { src: 'https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg', className: 'platform-icon apple-icon' };
         return null;
     };
 
@@ -154,9 +154,10 @@ export default function SettingsModal({ onClose, selectedGuildId }) {
                             
                             <div className="playlist-import-form">
                                 <div className="input-with-platform">
-                                    {getPlatformIcon(playlistUrl) && (
-                                        <img src={getPlatformIcon(playlistUrl)} alt="platform" className="platform-icon" />
-                                    )}
+                                    {(() => {
+                                        const icon = getPlatformIcon(playlistUrl);
+                                        return icon && <img src={icon.src} alt="platform" className={icon.className} />;
+                                    })()}
                                     <input 
                                         type="text" 
                                         placeholder="Ex: https://open.spotify.com/playlist/..."
