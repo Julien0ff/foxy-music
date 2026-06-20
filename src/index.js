@@ -13,12 +13,6 @@ const Nodes = [
         secure: false
     },
     {
-        name: 'Serenetia-80',
-        url: 'lavalinkv4.serenetia.com:80',
-        auth: 'https://seretia.link/discord',
-        secure: false
-    },
-    {
         name: 'TriniumHost-4333',
         url: 'lavalink.triniumhost.com:4333',
         auth: 'free',
@@ -31,12 +25,6 @@ const Nodes = [
         secure: false
     },
     // --- SSL nodes ---
-    {
-        name: 'Serenetia-SSL',
-        url: 'lavalinkv4.serenetia.com:443',
-        auth: 'https://seretia.link/discord',
-        secure: true
-    },
     {
         name: 'TriniumHost-SSL',
         url: 'lavalink-v4.triniumhost.com:443',

@@ -763,38 +763,29 @@ function startServer(client) {
         try {
             emitProgress({ status: 'parsing', message: 'Analyse de la playlist...' });
 
-            let result;
-            const isYouTube = url.includes('youtube.com/playlist') || url.includes('youtu.be');
-            const isDeezer = url.includes('deezer.com');
-            const isSoundCloud = url.includes('soundcloud.com') && (url.includes('/sets/') || url.includes('/albums/'));
+            emitProgress({ status: 'parsing', message: 'Analyse de la playlist via Lavalink...' });
+
+            const node = client.shoukaku.nodes.values().next().value;
+            if (!node) throw new Error('Aucun nœud Lavalink disponible.');
             
-            if (isYouTube || isDeezer || isSoundCloud) {
-                // Use Lavalink's native playlist resolver for these platforms
-                const node = client.shoukaku.nodes.values().next().value;
-                if (!node) throw new Error('Aucun nœud Lavalink disponible.');
-                
-                const lavalinkResult = await node.rest.resolve(url);
-                if (!lavalinkResult || lavalinkResult.loadType === 'empty' || lavalinkResult.loadType === 'error') {
-                    throw new Error('Impossible de charger cette playlist depuis Lavalink.');
-                }
-                
-                const tracks = (lavalinkResult.data?.tracks || lavalinkResult.data || []);
-                result = {
-                    name: lavalinkResult.data?.info?.name || 'Playlist',
-                    tracks: tracks.map(t => ({
-                        title: t.info?.title || 'Unknown',
-                        artist: t.info?.author || 'Unknown',
-                        duration: t.info?.length || 0,
-                        artworkUrl: t.info?.artworkUrl || null,
-                        url: t.info?.uri || null,
-                        encoded: t.encoded || null,
-                        isImported: true
-                    }))
-                };
-            } else {
-                // Spotify / Apple Music — use the custom parser
-                result = await PlaylistParser.parse(url);
+            const lavalinkResult = await node.rest.resolve(url);
+            if (!lavalinkResult || lavalinkResult.loadType === 'empty' || lavalinkResult.loadType === 'error') {
+                throw new Error('Impossible de charger cette playlist. As-tu bien installé le plugin LavaSrc sur ton Lavalink ?');
             }
+            
+            const tracks = (lavalinkResult.data?.tracks || lavalinkResult.data || []);
+            let result = {
+                name: lavalinkResult.data?.info?.name || 'Playlist Importée',
+                tracks: tracks.map(t => ({
+                    title: t.info?.title || 'Unknown',
+                    artist: t.info?.author || 'Unknown',
+                    duration: t.info?.length || 0,
+                    artworkUrl: t.info?.artworkUrl || null,
+                    url: t.info?.uri || null,
+                    encoded: t.encoded || null,
+                    isImported: true // Mark as imported to skip further search
+                }))
+            };
 
             if (!result || !result.tracks || result.tracks.length === 0) {
                 throw new Error('Aucune piste trouvée dans cette playlist.');
