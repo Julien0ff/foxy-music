@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Settings, X, Loader2, Save, CheckCircle2, AlertCircle } from 'lucide-react';
 import { io } from 'socket.io-client';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
+import { API_URL } from '../config';
 
 export default function SettingsModal({ onClose, selectedGuildId }) {
     const [activeTab, setActiveTab] = useState('import');
