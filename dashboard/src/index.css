@@ -1656,3 +1656,16 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   background: rgba(237, 66, 69, 0.15);
   color: #ed4245;
 }
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

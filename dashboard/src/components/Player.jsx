@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, SkipForward, Music, Repeat, Mic, MicOff, Search, Loader2 } from 'lucide-react';
+import { Repeat, Music, Mic, MicOff, Search, Loader2 } from 'lucide-react';
 import { API_URL } from '../config';
 
 // Helper to extract YouTube video ID
