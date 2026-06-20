@@ -240,12 +240,21 @@ client.on('voiceStateUpdate', (oldState, newState) => {
                 return {
                     id: c.id,
                     name: c.name,
+                    position: c.position,
+                    rawPosition: c.rawPosition,
+                    parentPosition: c.parent ? c.parent.position : -1,
+                    parentName: c.parent ? c.parent.name : null,
                     members: c.members.map(m => ({
                         id: m.id,
                         name: m.user.globalName || m.user.username,
                         avatar: m.user.displayAvatarURL({ extension: 'png' })
                     }))
                 };
+            });
+            // Sort channels like Discord: by parent category position, then by channel position within category
+            channelsData.sort((a, b) => {
+                if (a.parentPosition !== b.parentPosition) return a.parentPosition - b.parentPosition;
+                return a.position - b.position;
             });
             const botVoiceChannel = guild.members.me?.voice?.channelId || null;
             global.io.to(`queue_${guildId}`).emit('voice_update', { channels: channelsData, botVoiceChannel });

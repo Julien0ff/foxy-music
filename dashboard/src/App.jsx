@@ -418,7 +418,8 @@ function App() {
               <div className="left-column">
                 <VoiceChannels 
                   voiceData={voiceData}
-                  onConnect={handleConnectBot} 
+                  onConnect={handleConnectBot}
+                  userId={user?.id}
                 />
               </div>
               
