@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Repeat, Music, Mic, MicOff, Search, Loader2 } from 'lucide-react';
+import { 
+  Play, 
+  Pause, 
+  SkipForward, 
+  SkipBack,
+  Repeat, 
+  Music, 
+  Mic, 
+  MicOff, 
+  Search,
+  Loader2 
+} from 'lucide-react';
 import { API_URL } from '../config';
 
 // Helper to extract YouTube video ID
@@ -363,19 +374,15 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
             disabled={!currentTrack}
             title="Recommencer au début"
           >
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 2.5a9.5 9.5 0 1 0 9.5 9.5h-2a7.5 7.5 0 1 1-7.5-7.5v3l4.5-4-4.5-4v3Z"/></svg>
+            <SkipBack size={28} fill="currentColor" />
           </button>
 
           <button className="control-btn play-pause-btn" onClick={handlePauseResume} disabled={!currentTrack}>
-            {isPlaying ? (
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-            ) : (
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" style={{ marginLeft: '2px' }}><path d="M8 5v14l11-7z"/></svg>
-            )}
+            {isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" style={{ marginLeft: '4px' }} />}
           </button>
 
           <button className="control-btn" onClick={handleSkip} disabled={!currentTrack}>
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            <SkipForward size={28} fill="currentColor" />
           </button>
 
           <button
