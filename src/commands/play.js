@@ -7,12 +7,16 @@ if (!global.queues) global.queues = new Map();
 
 function getQueue(guildId) {
     if (!global.queues.has(guildId)) {
+        const { getGuildConfig } = require('../utils/db');
+        const config = getGuildConfig(guildId);
+        
         global.queues.set(guildId, {
             tracks: [],
             currentTrack: null,
             player: null,
             history: [],
-            autoplay: false,
+            autoplay: config.autoplay || false,
+            volume: config.defaultVolume || 100,
             leaveTimeout: null
         });
     }
@@ -214,7 +218,7 @@ async function handleLoadFailed(guildId, client, failedTrack) {
 
     try {
         const nodes = Array.from(client.shoukaku.nodes.values());
-        const searchQuery = `scsearch:${failedTrack.title}`;
+        const searchQuery = `scsearch:${failedTrack.title} ${failedTrack.artist || ''}`.trim();
         
         let result = null;
         let resolvedNode = null;

@@ -1076,31 +1076,27 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
    PLAYLIST IMPORT PANEL
    ======================================== */
 /* ========================================
-   SETTINGS MODAL & PLAYLIST IMPORT
+   SETTINGS MODAL
    ======================================== */
 .settings-modal {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(10px);
-  z-index: 1000;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: modalFadeIn 0.3s ease;
-}
-
-@keyframes modalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  z-index: 200;
+  animation: fadeIn 0.3s ease;
 }
 
 .settings-card {
   width: 90%;
-  max-width: 480px;
+  max-width: 520px;
   background: rgba(20, 20, 20, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
@@ -1108,6 +1104,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  max-height: 85vh;
 }
 
 .settings-header {
@@ -1116,6 +1113,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   justify-content: space-between;
   padding: 20px 24px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .settings-title-group {
@@ -1140,10 +1138,45 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 50%;
 }
 
 .settings-close:hover {
   color: var(--text-main);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.settings-tabs {
+  display: flex;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.settings-tab {
+  background: none;
+  border: none;
+  padding: 16px 20px;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.settings-tab:hover {
+  color: var(--text-main);
+}
+
+.settings-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
 }
 
 .settings-body {
@@ -1151,8 +1184,18 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   display: flex;
   flex-direction: column;
   gap: 24px;
-  max-height: 70vh;
   overflow-y: auto;
+}
+
+.settings-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: var(--text-muted);
+  gap: 16px;
+  font-weight: 500;
 }
 
 .settings-section {
@@ -1174,36 +1217,59 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   font-size: 13px;
   color: var(--text-muted);
   line-height: 1.5;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 
+/* Playlist Import Tab */
 .playlist-import-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+}
+
+.input-with-platform {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.platform-icon {
+  position: absolute;
+  left: 14px;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .playlist-import-input {
   width: 100%;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px 14px 14px 44px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md);
   color: var(--text-main);
   outline: none;
-  font-size: 13px;
-  transition: border-color 0.2s;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.input-with-platform:not(:has(.platform-icon)) .playlist-import-input {
+  padding-left: 14px;
 }
 
 .playlist-import-input:focus {
   border-color: var(--primary);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 2px rgba(255, 65, 108, 0.2);
 }
 
 .playlist-import-btn {
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   color: white;
   border: none;
-  padding: 12px;
+  padding: 14px;
   border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
@@ -1212,6 +1278,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   align-items: center;
   justify-content: center;
   gap: 8px;
+  font-size: 14px;
 }
 
 .playlist-import-btn:hover:not(:disabled) {
@@ -1220,7 +1287,270 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 }
 
 .playlist-import-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.import-progress-box {
+  margin-top: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.import-progress-box.error {
+  border-color: rgba(237, 66, 69, 0.3);
+  background: rgba(237, 66, 69, 0.05);
+}
+
+.import-progress-box.done {
+  border-color: rgba(87, 242, 135, 0.3);
+  background: rgba(87, 242, 135, 0.05);
+}
+
+.import-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.import-progress-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.import-progress-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(255, 65, 108, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.progress-bar-container {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  transition: width 0.3s ease;
+}
+
+.progress-bar-fill.parsing, .progress-bar-fill.parsed {
+  animation: pulseProgress 2s infinite;
+}
+
+.progress-bar-fill.done {
+  background: #57F287;
+}
+
+@keyframes pulseProgress {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.text-blue { color: #5865F2; }
+.text-yellow { color: #FEE75C; }
+.text-green { color: #57F287; }
+.text-red { color: #ED4245; }
+
+/* Server Settings Tab */
+.server-settings {
+  gap: 20px;
+}
+
+.setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  gap: 24px;
+}
+
+.setting-info {
+  flex: 1;
+}
+
+.setting-info h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.setting-info p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.setting-control {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch .slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  transition: .3s;
+}
+
+.toggle-switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+}
+
+.toggle-switch input:checked + .slider {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+}
+
+.toggle-switch input:checked + .slider:before {
+  transform: translateX(24px);
+}
+
+.toggle-switch .slider.round {
+  border-radius: 24px;
+}
+
+.toggle-switch .slider.round:before {
+  border-radius: 50%;
+}
+
+/* Select Dropdown */
+.role-select {
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  min-width: 180px;
+}
+
+.role-select:focus {
+  border-color: var(--primary);
+}
+
+.role-select option {
+  background: #1a1a1a;
+  color: white;
+}
+
+/* Range Slider */
+.volume-slider {
+  -webkit-appearance: none;
+  width: 120px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.settings-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.save-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.save-status.success { color: #57F287; }
+.save-status.error { color: #ED4245; }
+
+.save-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: var(--secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 65, 108, 0.3);
+}
+
+.save-btn:disabled {
+  opacity: 0.7;
   cursor: not-allowed;
 }
 

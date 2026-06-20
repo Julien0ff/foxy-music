@@ -7,12 +7,6 @@ const { Shoukaku, Connectors } = require('shoukaku');
 const Nodes = [
     // --- Reliable nodes (confirmed v4) ---
     {
-        name: 'HeavenCloud',
-        url: '89.106.84.59:4000',
-        auth: 'heavencloud.in',
-        secure: false
-    },
-    {
         name: 'Serenetia-80',
         url: 'lavalinkv4.serenetia.com:80',
         auth: 'https://seretia.link/discord',
@@ -22,12 +16,6 @@ const Nodes = [
         name: 'TriniumHost-4333',
         url: 'lavalink.triniumhost.com:4333',
         auth: 'free',
-        secure: false
-    },
-    {
-        name: 'NexCloud',
-        url: 'n3.nexcloud.in:2026',
-        auth: 'nexcloud',
         secure: false
     },
     {

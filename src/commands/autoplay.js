@@ -12,6 +12,11 @@ module.exports = {
         if (!checkDJ(interaction, queue)) return interaction.reply({ content: '❌ Vous devez être DJ pour utiliser cette commande.', ephemeral: true });
 
         queue.autoplay = !queue.autoplay;
+        
+        // Also save to guild config so it persists
+        const { updateGuildConfig } = require('../utils/db');
+        updateGuildConfig(interaction.guild.id, { autoplay: queue.autoplay });
+        
         updatePanel(interaction.client, interaction.guild.id);
         
         return interaction.reply(queue.autoplay ? '📻 Lecture automatique **Activée** !' : '📻 Lecture automatique **Désactivée** !');

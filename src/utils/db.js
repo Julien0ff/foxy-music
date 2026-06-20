@@ -43,6 +43,8 @@ function getGuildConfig(guildId) {
             language: 'fr',
             djRoleId: null,
             twentyFourSeven: false,
+            defaultVolume: 100,
+            autoplay: false,
             stats: {
                 totalMessages: 0,
                 totalMusicPlayed: 0
@@ -53,6 +55,8 @@ function getGuildConfig(guildId) {
     // Assure defaults are present on existing configs
     if (db.guilds[guildId].djRoleId === undefined) db.guilds[guildId].djRoleId = null;
     if (db.guilds[guildId].twentyFourSeven === undefined) db.guilds[guildId].twentyFourSeven = false;
+    if (db.guilds[guildId].defaultVolume === undefined) db.guilds[guildId].defaultVolume = 100;
+    if (db.guilds[guildId].autoplay === undefined) db.guilds[guildId].autoplay = false;
     
     return db.guilds[guildId];
 }
@@ -67,6 +71,8 @@ function updateGuildConfig(guildId, updates) {
             language: 'fr',
             djRoleId: null,
             twentyFourSeven: false,
+            defaultVolume: 100,
+            autoplay: false,
             stats: {
                 totalMessages: 0,
                 totalMusicPlayed: 0

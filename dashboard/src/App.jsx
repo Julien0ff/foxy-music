@@ -11,6 +11,7 @@ import './App.css';
 import { API_URL } from './config';
 import TermsOfService from './components/TermsOfService';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import SettingsModal from './components/SettingsModal';
 
 const CLIENT_ID = '1509947523949662380';
 const REDIRECT_URI = encodeURIComponent(window.location.origin);
@@ -76,8 +77,6 @@ function App() {
   
   // Settings and Playlist Import States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [playlistUrl, setPlaylistUrl] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
 
   // Background crossfade state
   const [bgState, setBgState] = useState({
@@ -294,32 +293,7 @@ function App() {
     }
   };
 
-  const handleImportPlaylist = async () => {
-    if (!playlistUrl.trim() || !selectedGuildId) return;
 
-    setIsImporting(true);
-    try {
-      const res = await fetch(`${API_URL}/api/guilds/${selectedGuildId}/playlist-import`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: playlistUrl.trim() })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        alert(`Playlist "${data.name}" importée avec succès (${data.count} morceaux ajoutés au bot) !`);
-        setPlaylistUrl('');
-        setIsSettingsOpen(false);
-      } else {
-        alert(data.error || 'Erreur lors de l\'importation');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Erreur réseau');
-    } finally {
-      setIsImporting(false);
-    }
-  };
   const handleRemoveTrack = async (index) => {
     if (!selectedGuildId) return;
     try {
@@ -470,51 +444,10 @@ function App() {
 
       {/* Settings Modal */}
       {isSettingsOpen && (
-        <div className="settings-modal" onClick={() => setIsSettingsOpen(false)}>
-          <div className="settings-card" onClick={(e) => e.stopPropagation()}>
-            <div className="settings-header">
-              <div className="settings-title-group">
-                <Settings size={20} className="settings-title-icon" />
-                <span className="settings-title">Paramètres</span>
-              </div>
-              <button className="settings-close" onClick={() => setIsSettingsOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="settings-body">
-              <div className="settings-section">
-                <h3 className="settings-section-title">Importer des Playlists</h3>
-                <p className="settings-section-desc">
-                  Collez un lien de playlist publique <strong>Spotify</strong> ou <strong>Apple Music</strong> pour l'importer instantanément dans la file d'attente du bot Foxy.
-                </p>
-                <div className="playlist-import-form">
-                  <input 
-                    type="text" 
-                    placeholder="Ex: https://open.spotify.com/playlist/..."
-                    value={playlistUrl}
-                    onChange={(e) => setPlaylistUrl(e.target.value)}
-                    className="playlist-import-input"
-                    disabled={isImporting}
-                  />
-                  <button 
-                    onClick={handleImportPlaylist}
-                    disabled={isImporting || !playlistUrl.trim()}
-                    className="playlist-import-btn"
-                  >
-                    {isImporting ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        <span>Importation...</span>
-                      </>
-                    ) : (
-                      <span>Lancer l'importation</span>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SettingsModal 
+          onClose={() => setIsSettingsOpen(false)} 
+          selectedGuildId={selectedGuildId} 
+        />
       )}
     </div>
   );

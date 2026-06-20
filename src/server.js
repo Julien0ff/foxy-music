@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
-const { getGuildConfig } = require('./utils/db');
+const { getGuildConfig, updateGuildConfig } = require('./utils/db');
 const { updatePanel } = require('./utils/panelUpdater');
 const { fetchLyrics } = require('./utils/lyrics');
 const PlaylistParser = require('./utils/playlistParser');
@@ -88,6 +88,47 @@ function startServer(client) {
         const guildId = req.params.id;
         const config = getGuildConfig(guildId);
         res.json(config);
+    });
+
+    // Update server configuration from dashboard
+    app.post('/api/guilds/:id/config', (req, res) => {
+        const guildId = req.params.id;
+        const updates = req.body;
+        
+        // Only allow safe fields to be updated
+        const allowedFields = ['twentyFourSeven', 'djRoleId', 'defaultVolume', 'autoplay'];
+        const safeUpdates = {};
+        for (const key of allowedFields) {
+            if (updates[key] !== undefined) {
+                safeUpdates[key] = updates[key];
+            }
+        }
+        
+        const config = updateGuildConfig(guildId, safeUpdates);
+        
+        // Apply autoplay to active queue if present
+        if (safeUpdates.autoplay !== undefined && global.queues && global.queues.has(guildId)) {
+            global.queues.get(guildId).autoplay = safeUpdates.autoplay;
+        }
+        
+        res.json({ success: true, config });
+    });
+
+    // Get available roles for DJ selector
+    app.get('/api/guilds/:id/roles', (req, res) => {
+        const guild = client.guilds.cache.get(req.params.id);
+        if (!guild) return res.status(404).json({ error: 'Guild not found' });
+        
+        const roles = guild.roles.cache
+            .filter(r => r.id !== guild.id && !r.managed) // Exclude @everyone and bot-managed roles
+            .sort((a, b) => b.position - a.position)
+            .map(r => ({
+                id: r.id,
+                name: r.name,
+                color: r.hexColor
+            }));
+        
+        res.json(roles);
     });
 
     // --- New API for Multi-session and Voice states ---
@@ -709,16 +750,64 @@ function startServer(client) {
     // --- Playlist Import ---
     app.post('/api/guilds/:id/playlist-import', async (req, res) => {
         const guildId = req.params.id;
-        const { url } = req.body;
+        const { url, channelId } = req.body;
         if (!url) return res.status(400).json({ error: 'Missing playlist URL' });
 
+        // Emit progress events via socket
+        const emitProgress = (data) => {
+            if (global.io) {
+                global.io.to(`queue_${guildId}`).emit('import_progress', data);
+            }
+        };
+
         try {
-            const result = await PlaylistParser.parse(url);
+            emitProgress({ status: 'parsing', message: 'Analyse de la playlist...' });
+
+            let result;
+            const isYouTube = url.includes('youtube.com/playlist') || url.includes('youtu.be');
+            const isDeezer = url.includes('deezer.com');
+            const isSoundCloud = url.includes('soundcloud.com') && (url.includes('/sets/') || url.includes('/albums/'));
             
+            if (isYouTube || isDeezer || isSoundCloud) {
+                // Use Lavalink's native playlist resolver for these platforms
+                const node = client.shoukaku.nodes.values().next().value;
+                if (!node) throw new Error('Aucun nœud Lavalink disponible.');
+                
+                const lavalinkResult = await node.rest.resolve(url);
+                if (!lavalinkResult || lavalinkResult.loadType === 'empty' || lavalinkResult.loadType === 'error') {
+                    throw new Error('Impossible de charger cette playlist depuis Lavalink.');
+                }
+                
+                const tracks = (lavalinkResult.data?.tracks || lavalinkResult.data || []);
+                result = {
+                    name: lavalinkResult.data?.info?.name || 'Playlist',
+                    tracks: tracks.map(t => ({
+                        title: t.info?.title || 'Unknown',
+                        artist: t.info?.author || 'Unknown',
+                        duration: t.info?.length || 0,
+                        artworkUrl: t.info?.artworkUrl || null,
+                        url: t.info?.uri || null,
+                        encoded: t.encoded || null,
+                        isImported: true
+                    }))
+                };
+            } else {
+                // Spotify / Apple Music — use the custom parser
+                result = await PlaylistParser.parse(url);
+            }
+
+            if (!result || !result.tracks || result.tracks.length === 0) {
+                throw new Error('Aucune piste trouvée dans cette playlist.');
+            }
+
+            emitProgress({ status: 'parsed', message: `${result.tracks.length} pistes trouvées`, total: result.tracks.length, name: result.name });
+
             if (!global.queues) global.queues = new Map();
             let queue = global.queues.get(guildId);
             if (!queue) {
-                queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: 100 };
+                const { getGuildConfig } = require('./utils/db');
+                const config = getGuildConfig(guildId);
+                queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: config.defaultVolume || 100, autoplay: config.autoplay || false };
                 global.queues.set(guildId, queue);
             }
 
@@ -730,19 +819,25 @@ function startServer(client) {
                 } else {
                     const guild = client.guilds.cache.get(guildId);
                     if (guild) {
-                        const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
-                        let targetChannel = voiceChannels.find(c => c.members.filter(m => !m.user.bot).size > 0);
-                        if (!targetChannel) targetChannel = voiceChannels.first();
+                        // Use channelId from request body if provided, otherwise auto-detect
+                        let targetChannelId = channelId;
+                        if (!targetChannelId) {
+                            const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
+                            let targetChannel = voiceChannels.find(c => c.members.filter(m => !m.user.bot).size > 0);
+                            if (!targetChannel) targetChannel = voiceChannels.first();
+                            targetChannelId = targetChannel?.id;
+                        }
 
-                        if (targetChannel) {
+                        if (targetChannelId) {
                             try {
                                 player = await client.shoukaku.joinVoiceChannel({
                                     guildId: guildId,
-                                    channelId: targetChannel.id,
+                                    channelId: targetChannelId,
                                     shardId: 0,
                                     deaf: true
                                 });
                                 queue.player = player;
+                                player.setGlobalVolume(queue.volume);
                                 
                                 player.on('start', () => {
                                     console.log(`[Player Web API Import] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
@@ -789,7 +884,8 @@ function startServer(client) {
             const tracksToAdd = result.tracks.map(t => ({
                 title: t.title,
                 artist: t.artist,
-                url: null, // Background pre-resolve
+                url: t.url || null,
+                encoded: t.encoded || null,
                 query: `${t.title} ${t.artist}`,
                 artworkUrl: t.artworkUrl,
                 duration: t.duration,
@@ -798,6 +894,8 @@ function startServer(client) {
 
             queue.tracks.push(...tracksToAdd);
 
+            emitProgress({ status: 'done', message: `${tracksToAdd.length} pistes ajoutées à la file`, total: tracksToAdd.length, name: result.name });
+            
             res.json({ success: true, name: result.name, count: tracksToAdd.length });
 
             // Start playing immediately if nothing is currently playing
@@ -812,6 +910,7 @@ function startServer(client) {
 
         } catch (e) {
             console.error('[Playlist Import Error]', e);
+            emitProgress({ status: 'error', message: e.message || 'Import échoué' });
             return res.status(500).json({ error: e.message || 'Playlist import failed' });
         }
     });

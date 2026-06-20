@@ -120,12 +120,15 @@ module.exports = {
             
             if (!global.queues) global.queues = new Map();
             if (!global.queues.has(interaction.guild.id)) {
+                const { getGuildConfig } = require('../utils/db');
+                const config = getGuildConfig(interaction.guild.id);
                 global.queues.set(interaction.guild.id, {
                     tracks: [],
                     currentTrack: null,
                     player: null,
                     history: [],
-                    autoplay: false,
+                    autoplay: config.autoplay || false,
+                    volume: config.defaultVolume || 100,
                     leaveTimeout: null
                 });
             }
@@ -145,6 +148,7 @@ module.exports = {
                             deaf: true
                         });
                         queue.player = player;
+                        player.setGlobalVolume(queue.volume);
                         
                         player.on('start', () => updatePanel(interaction.client, interaction.guild.id));
                         player.on('end', (reason) => {
