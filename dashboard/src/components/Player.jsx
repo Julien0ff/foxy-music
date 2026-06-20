@@ -363,15 +363,19 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
             disabled={!currentTrack}
             title="Recommencer au début"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 2.5a9.5 9.5 0 1 0 9.5 9.5h-2a7.5 7.5 0 1 1-7.5-7.5v3l4.5-4-4.5-4v3Z"/></svg>
           </button>
 
           <button className="control-btn play-pause-btn" onClick={handlePauseResume} disabled={!currentTrack}>
-            {isPlaying ? <Pause size={32} /> : <Play size={32} style={{ marginLeft: '4px' }} />}
+            {isPlaying ? (
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" style={{ marginLeft: '2px' }}><path d="M8 5v14l11-7z"/></svg>
+            )}
           </button>
 
           <button className="control-btn" onClick={handleSkip} disabled={!currentTrack}>
-            <SkipForward size={28} />
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
           </button>
 
           <button
