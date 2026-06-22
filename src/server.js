@@ -355,31 +355,7 @@ function startServer(client) {
             let finalQuery = query;
             let shouldForceFinalQuery = false;
             
-            if (query.includes('open.spotify.com') || query.includes('spotify.link')) {
-                const title = await getSpotifyTrackName(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if (query.includes('music.apple.com')) {
-                const title = await getAppleMusicTrackName(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if (query.includes('deezer.com') || query.includes('deezer.page.link')) {
-                const title = await getDeezerTrackName(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if ((query.includes('youtube.com/watch') || query.includes('youtu.be/')) && !query.includes('playlist')) {
-                const title = await getYouTubeVideoTitle(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if (!query.includes('youtube.com/watch') && !query.includes('youtu.be/') && !query.includes('soundcloud.com/') && !query.startsWith('http')) {
+            if (!query.startsWith('http')) {
                 finalQuery = `scsearch:${query}`;
                 shouldForceFinalQuery = true;
             }
@@ -428,25 +404,7 @@ function startServer(client) {
 
             if (!track) return res.status(404).json({ error: 'No tracks in result' });
 
-            // Redirect YouTube resolved tracks to SoundCloud to bypass geo-blocks/captchas
-            if (track.info.uri && (track.info.uri.includes('youtube.com') || track.info.uri.includes('youtu.be'))) {
-                console.log(`[Web Player] Intercepted YouTube track "${track.info.title}". Redirecting search to SoundCloud...`);
-                const scSearchQuery = `scsearch:${track.info.title}`;
-                let scResult = null;
-                for (const node of orderedNodes) {
-                    try {
-                        scResult = await node.rest.resolve(scSearchQuery);
-                        if (scResult && scResult.loadType === 'search' && scResult.data && scResult.data.length > 0) {
-                            track = scResult.data[0];
-                            resolvedNode = node;
-                            console.log(`[Web Player] Successfully redirected YouTube track to SoundCloud: "${track.info.title}"`);
-                            break;
-                        }
-                    } catch (err) {
-                        console.log(`[Web Player] Node ${node.name} failed resolving redirected SoundCloud track:`, err.message);
-                    }
-                }
-            }
+            // Native Lavalink track resolution used instead of YouTube -> SoundCloud redirect hack.
 
             // Normalize track object
             const trackObj = {

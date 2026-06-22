@@ -461,31 +461,7 @@ module.exports = {
             let finalQuery = query;
             let shouldForceFinalQuery = false;
             
-            if (isSpotifyUrl(query)) {
-                const title = await getSpotifyTrackName(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if (isAppleMusicUrl(query)) {
-                const title = await getAppleMusicTrackName(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if (isDeezerUrl(query)) {
-                const title = await getDeezerTrackName(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if (isYouTubeUrl(query) && !query.includes('playlist')) {
-                const title = await getYouTubeVideoTitle(query);
-                if (title) {
-                    finalQuery = `scsearch:${title}`;
-                    shouldForceFinalQuery = true;
-                }
-            } else if (!isYouTubeUrl(query) && !isSoundCloudUrl(query) && !query.startsWith('http')) {
+            if (!query.startsWith('http')) {
                 finalQuery = `scsearch:${query}`;
                 shouldForceFinalQuery = true;
             }
@@ -567,25 +543,7 @@ module.exports = {
                 return interaction.followUp('❌ No results found!');
             }
 
-            // Redirect YouTube resolved tracks to SoundCloud to bypass geo-blocks/captchas
-            if (trackToPlay.info.uri && (trackToPlay.info.uri.includes('youtube.com') || trackToPlay.info.uri.includes('youtu.be'))) {
-                console.log(`[Player] Intercepted YouTube track "${trackToPlay.info.title}". Redirecting search to SoundCloud...`);
-                const scSearchQuery = `scsearch:${trackToPlay.info.title}`;
-                let scResult = null;
-                for (const node of orderedNodes) {
-                    try {
-                        scResult = await node.rest.resolve(scSearchQuery);
-                        if (scResult && scResult.loadType === 'search' && scResult.data && scResult.data.length > 0) {
-                            trackToPlay = scResult.data[0];
-                            resolvedNode = node;
-                            console.log(`[Player] Successfully redirected YouTube track to SoundCloud: "${trackToPlay.info.title}"`);
-                            break;
-                        }
-                    } catch (err) {
-                        console.log(`[Lavalink Error] Node ${node.name} failed resolving redirected SoundCloud track:`, err.message);
-                    }
-                }
-            }
+            // Native Lavalink track resolution used.
 
             const trackInfo = { 
                 title: trackToPlay.info.title, 

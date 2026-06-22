@@ -5,7 +5,7 @@ import QueueList from './components/QueueList';
 import SearchBar from './components/SearchBar';
 import Sidebar from './components/Sidebar';
 import VoiceChannels from './components/VoiceChannels';
-import { Music, X, Loader2, Settings } from 'lucide-react';
+import { Music } from 'lucide-react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import './App.css';
 import { API_URL } from './config';

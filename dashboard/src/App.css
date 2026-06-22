@@ -589,6 +589,7 @@
   transition: var(--transition);
   border-radius: 50%;
   padding: 6px;
+  flex-shrink: 0;
 }
 
 .control-btn:hover:not(:disabled) {
