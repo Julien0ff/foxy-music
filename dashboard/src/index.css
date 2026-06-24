@@ -1,10 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  --primary: #ff416c;
-  --secondary: #ff4b2b;
-  --bg-color: #0a0a0a;
-  --surface: rgba(30, 30, 30, 0.4);
+  --primary: hsl(25, 95%, 55%);
+  --secondary: hsl(35, 90%, 50%);
+  --bg-color: hsl(220, 15%, 8%);
+  --surface: hsla(220, 15%, 12%, 0.6);
   --surface-border: rgba(255, 255, 255, 0.08);
   --surface-hover: rgba(255, 255, 255, 0.1);
   --text-main: #ffffff;

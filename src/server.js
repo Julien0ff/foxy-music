@@ -879,6 +879,151 @@ function startServer(client) {
         }
     });
 
+    // --- Desktop API: Auth & Deep Linking ---
+    app.get('/api/auth/discord', (req, res) => {
+        // Redirect to Discord OAuth
+        const clientId = process.env.CLIENT_ID;
+        const redirectUri = encodeURIComponent(`${req.protocol}://${req.get('host')}/api/auth/discord/callback`);
+        res.redirect(`https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=identify%20guilds`);
+    });
+
+    app.get('/api/auth/discord/callback', (req, res) => {
+        // Note: With response_type=token, the token is in the URL hash, which the server doesn't see.
+        // We serve a simple HTML page that extracts the hash and redirects to the desktop app.
+        res.send(`
+            <html>
+                <script>
+                    const hash = window.location.hash.substring(1);
+                    const params = new URLSearchParams(hash);
+                    const token = params.get('access_token');
+                    if (token) {
+                        window.location.href = 'foxymusic://auth?token=' + token;
+                        // Fallback message
+                        setTimeout(() => {
+                            document.body.innerHTML = '<h2>Authentification réussie. Vous pouvez fermer cette fenêtre.</h2><p>Si l\\'application ne s\\'est pas ouverte, <a href="foxymusic://auth?token=' + token + '">cliquez ici</a>.</p>';
+                        }, 1000);
+                    } else {
+                        document.body.innerHTML = '<h2>Erreur d\\'authentification</h2>';
+                    }
+                </script>
+            </html>
+        `);
+    });
+
+    // --- Desktop API: Artists ---
+    const { getUserProfile, updateUserProfile } = require('./utils/db');
+
+    app.post('/api/users/:id/artist/apply', (req, res) => {
+        const userId = req.params.id;
+        const profile = getUserProfile(userId);
+        updateUserProfile(userId, { isArtist: true });
+        res.json({ success: true, message: 'Demande soumise' });
+    });
+
+    app.get('/api/artists', (req, res) => {
+        const db = require('./utils/db').readDB ? require('./utils/db').readDB() : { users: {} };
+        const artists = Object.values(db.users).filter(u => u.isVerifiedArtist).map(u => u.artistProfile);
+        res.json(artists);
+    });
+
+    // --- Desktop API: User Library & Imports ---
+    app.get('/api/users/:id/library', (req, res) => {
+        const profile = getUserProfile(req.params.id);
+        res.json({
+            playlists: profile.playlists,
+            importedPlaylists: profile.importedPlaylists
+        });
+    });
+
+    app.post('/api/users/:id/import/spotify', async (req, res) => {
+        const { url } = req.body;
+        const userId = req.params.id;
+        if (!url) return res.status(400).json({ error: 'Missing URL' });
+        
+        try {
+            const node = client.shoukaku.nodes.values().next().value;
+            if (!node) throw new Error('Aucun nœud Lavalink disponible');
+            
+            const result = await node.rest.resolve(url);
+            if (!result || result.loadType === 'empty' || result.loadType === 'error') {
+                throw new Error('Playlist introuvable');
+            }
+
+            let rawTracks = [];
+            let playlistName = 'Import Spotify';
+            if (result.loadType === 'playlist') {
+                rawTracks = result.data.tracks || [];
+                playlistName = result.data.info?.name || playlistName;
+            } else if (Array.isArray(result.data)) {
+                rawTracks = result.data;
+            }
+
+            const tracksToAdd = rawTracks.map(t => ({
+                title: t.info?.title,
+                artist: t.info?.author,
+                url: t.info?.uri,
+                duration: t.info?.length,
+                artworkUrl: t.info?.artworkUrl
+            }));
+
+            const profile = getUserProfile(userId);
+            const updatedImports = { ...profile.importedPlaylists };
+            updatedImports.spotify = updatedImports.spotify || [];
+            updatedImports.spotify.push({ name: playlistName, tracks: tracksToAdd });
+            
+            updateUserProfile(userId, { importedPlaylists: updatedImports });
+            
+            res.json({ success: true, name: playlistName, count: tracksToAdd.length });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    app.post('/api/users/:id/import/apple-music', async (req, res) => {
+        // Similar to Spotify import, uses the same Lavalink resolution process
+        const { url } = req.body;
+        const userId = req.params.id;
+        if (!url) return res.status(400).json({ error: 'Missing URL' });
+        
+        try {
+            const node = client.shoukaku.nodes.values().next().value;
+            if (!node) throw new Error('Aucun nœud Lavalink disponible');
+            
+            const result = await node.rest.resolve(url);
+            if (!result || result.loadType === 'empty' || result.loadType === 'error') {
+                throw new Error('Playlist introuvable');
+            }
+
+            let rawTracks = [];
+            let playlistName = 'Import Apple Music';
+            if (result.loadType === 'playlist') {
+                rawTracks = result.data.tracks || [];
+                playlistName = result.data.info?.name || playlistName;
+            } else if (Array.isArray(result.data)) {
+                rawTracks = result.data;
+            }
+
+            const tracksToAdd = rawTracks.map(t => ({
+                title: t.info?.title,
+                artist: t.info?.author,
+                url: t.info?.uri,
+                duration: t.info?.length,
+                artworkUrl: t.info?.artworkUrl
+            }));
+
+            const profile = getUserProfile(userId);
+            const updatedImports = { ...profile.importedPlaylists };
+            updatedImports.appleMusic = updatedImports.appleMusic || [];
+            updatedImports.appleMusic.push({ name: playlistName, tracks: tracksToAdd });
+            
+            updateUserProfile(userId, { importedPlaylists: updatedImports });
+            
+            res.json({ success: true, name: playlistName, count: tracksToAdd.length });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
     io.on('connection', (socket) => {
         console.log('[Web] Nouveau client connecté:', socket.id);
         

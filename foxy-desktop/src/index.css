@@ -1,0 +1,119 @@
+:root {
+  --fox-orange: hsl(25, 95%, 55%);
+  --fox-amber: hsl(35, 90%, 50%);
+  --fox-copper: hsl(18, 80%, 40%);
+  --fox-cream: hsl(35, 60%, 95%);
+  
+  --bg-deep: hsl(220, 15%, 8%);
+  --bg-surface: hsla(220, 15%, 12%, 0.6);
+  --bg-elevated: hsla(220, 15%, 16%, 0.4);
+  
+  --text-primary: hsl(0, 0%, 95%);
+  --text-secondary: hsl(0, 0%, 60%);
+  
+  --titlebar-height: 38px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none; /* App feel */
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  height: 100vh;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  /* Background gradient placeholder until track cover is loaded */
+  background: radial-gradient(circle at 50% -20%, var(--fox-copper), var(--bg-deep) 60%);
+}
+
+/* Custom Titlebar */
+.titlebar {
+  height: var(--titlebar-height);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 1rem;
+  background: transparent;
+  z-index: 1000;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--fox-cream);
+  opacity: 0.8;
+  letter-spacing: 0.5px;
+}
+
+.window-controls {
+  display: flex;
+  height: 100%;
+}
+
+.window-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: 46px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.window-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.window-btn.close:hover {
+  background: #e81123;
+  color: white;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: var(--bg-surface);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}

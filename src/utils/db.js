@@ -84,32 +84,62 @@ function updateGuildConfig(guildId, updates) {
     return db.guilds[guildId];
 }
 
-// User Playlists
-function getUserPlaylists(userId) {
+function getUserProfile(userId) {
     const db = readDB();
     if (!db.users[userId]) {
-        db.users[userId] = { playlists: {} };
+        db.users[userId] = { 
+            playlists: {},
+            isArtist: false,
+            isVerifiedArtist: false,
+            artistProfile: {
+                displayName: "",
+                bio: "",
+                avatarUrl: "",
+                bannerUrl: "",
+                socialLinks: {},
+                tracks: []
+            },
+            importedPlaylists: {
+                spotify: [],
+                appleMusic: []
+            }
+        };
         writeDB(db);
     }
-    return db.users[userId].playlists || {};
+    // Ensure new fields exist for legacy users
+    if (db.users[userId].isArtist === undefined) db.users[userId].isArtist = false;
+    if (db.users[userId].isVerifiedArtist === undefined) db.users[userId].isVerifiedArtist = false;
+    if (!db.users[userId].artistProfile) db.users[userId].artistProfile = { displayName: "", bio: "", avatarUrl: "", bannerUrl: "", socialLinks: {}, tracks: [] };
+    if (!db.users[userId].importedPlaylists) db.users[userId].importedPlaylists = { spotify: [], appleMusic: [] };
+    
+    return db.users[userId];
+}
+
+function updateUserProfile(userId, updates) {
+    const profile = getUserProfile(userId);
+    const db = readDB();
+    db.users[userId] = { ...profile, ...updates };
+    writeDB(db);
+    return db.users[userId];
+}
+
+// Legacy Playlist Functions mapping to new structure
+function getUserPlaylists(userId) {
+    return getUserProfile(userId).playlists || {};
 }
 
 function updateUserPlaylist(userId, playlistName, tracks) {
+    const profile = getUserProfile(userId);
     const db = readDB();
-    if (!db.users[userId]) {
-        db.users[userId] = { playlists: {} };
-    }
-    if (!db.users[userId].playlists) {
-        db.users[userId].playlists = {};
-    }
     db.users[userId].playlists[playlistName] = tracks;
     writeDB(db);
     return db.users[userId].playlists[playlistName];
 }
 
 function deleteUserPlaylist(userId, playlistName) {
-    const db = readDB();
-    if (db.users[userId] && db.users[userId].playlists && db.users[userId].playlists[playlistName]) {
+    const profile = getUserProfile(userId);
+    if (profile.playlists[playlistName]) {
+        const db = readDB();
         delete db.users[userId].playlists[playlistName];
         writeDB(db);
         return true;
@@ -122,5 +152,7 @@ module.exports = {
     updateGuildConfig,
     getUserPlaylists,
     updateUserPlaylist,
-    deleteUserPlaylist
+    deleteUserPlaylist,
+    getUserProfile,
+    updateUserProfile
 };

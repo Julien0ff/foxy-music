@@ -349,7 +349,30 @@ function App() {
           </div>
           <h1>Foxy Music</h1>
           <p>La meilleure expérience musicale pour tes serveurs Discord.</p>
-          <a href={OAUTH_URL} target="_blank" rel="noopener noreferrer" className="login-button">Se connecter avec Discord</a>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
+            <a href={OAUTH_URL} target="_blank" rel="noopener noreferrer" className="login-button">Se connecter avec Discord</a>
+            
+            <a 
+              href="foxymusic://open" 
+              className="login-button" 
+              style={{ 
+                background: 'rgba(255, 255, 255, 0.1)', 
+                color: 'var(--text-main)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                boxShadow: 'none'
+              }}
+              onClick={(e) => {
+                // Fallback si le protocole ne s'ouvre pas
+                setTimeout(() => {
+                  if(document.hasFocus()) {
+                    alert("L'application Foxy Music ne semble pas être installée. Vous pourrez la télécharger bientôt !");
+                  }
+                }, 2000);
+              }}
+            >
+              Ouvrir l'application
+            </a>
+          </div>
           
           <div style={{ marginTop: '20px', display: 'flex', gap: '16px', fontSize: '12px' }}>
             <a href="#/terms-of-service" style={{ color: 'var(--text-muted)', textDecoration: 'none', transition: 'var(--transition)' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-main)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>Conditions d'utilisation</a>
