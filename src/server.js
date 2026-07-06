@@ -356,7 +356,7 @@ function startServer(client) {
             let shouldForceFinalQuery = false;
             
             if (!query.startsWith('http')) {
-                finalQuery = `scsearch:${query}`;
+                finalQuery = `ytmsearch:${query}`;
                 shouldForceFinalQuery = true;
             }
 
