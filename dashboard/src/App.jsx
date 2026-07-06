@@ -186,10 +186,20 @@ function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ guilds })
           })
-          .then(res => res.json())
+          .then(async res => {
+            if (!res.ok) {
+              console.error('Failed to fetch shared guilds, status:', res.status);
+              return [];
+            }
+            return res.json();
+          })
           .then(shared => {
              setSharedGuilds(shared);
              setSelectedGuildId(prev => (shared.length > 0 && !prev) ? shared[0].id : prev);
+          })
+          .catch(err => {
+             console.error('Error parsing shared guilds:', err);
+             setSharedGuilds([]);
           });
         }
       });
