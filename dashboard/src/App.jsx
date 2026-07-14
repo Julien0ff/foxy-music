@@ -159,58 +159,88 @@ function App() {
       .catch(console.error);
 
     if (token) {
-      fetch('https://discord.com/api/users/@me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.id) setUser(data);
-        else {
-          localStorage.removeItem('discord_token');
-          setToken(null);
-        }
-      })
-      .catch(() => {
-        localStorage.removeItem('discord_token');
-        setToken(null);
-      });
+      const cachedUser = sessionStorage.getItem('discord_user');
+      if (cachedUser) {
+        setUser(JSON.parse(cachedUser));
+      } else {
+        fetch('https://discord.com/api/users/@me', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => {
+          if (res.status === 401) {
+            localStorage.removeItem('discord_token');
+            setToken(null);
+            return null;
+          }
+          if (res.status === 429) return null;
+          return res.json();
+        })
+        .then(data => {
+          if (data && data.id) {
+            setUser(data);
+            sessionStorage.setItem('discord_user', JSON.stringify(data));
+          }
+        })
+        .catch(console.error);
+      }
 
       // Fetch guilds
-      fetch('https://discord.com/api/users/@me/guilds', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      .then(res => res.json())
-      .then(guilds => {
-        if (Array.isArray(guilds)) {
-          fetch(`${API_URL}/api/user/guilds`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ guilds })
-          })
-          .then(async res => {
-            if (!res.ok) {
-              console.error('Failed to fetch shared guilds, status:', res.status);
-              return [];
-            }
-            return res.json();
-          })
-          .then(shared => {
-             setSharedGuilds(shared);
-             if (shared.length > 0) {
-               setSelectedGuildId(prev => (!prev) ? shared[0].id : prev);
-               setShowInvitePopup(false);
-             } else {
-               setSelectedGuildId(null);
-               setShowInvitePopup(true);
-             }
-          })
-          .catch(err => {
-             console.error('Error parsing shared guilds:', err);
-             setSharedGuilds([]);
-             setShowInvitePopup(true);
-          });
+      const cachedShared = sessionStorage.getItem('discord_shared_guilds');
+      if (cachedShared) {
+        const shared = JSON.parse(cachedShared);
+        setSharedGuilds(shared);
+        if (shared.length > 0) {
+           setSelectedGuildId(prev => (!prev) ? shared[0].id : prev);
+           setShowInvitePopup(false);
+        } else {
+           setSelectedGuildId(null);
+           setShowInvitePopup(true);
         }
-      });
+      } else {
+        fetch('https://discord.com/api/users/@me/guilds', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => {
+          if (res.status === 429) {
+            console.warn("Rate limited on /users/@me/guilds");
+            return null;
+          }
+          return res.json();
+        })
+        .then(guilds => {
+          if (Array.isArray(guilds)) {
+            fetch(`${API_URL}/api/user/guilds`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ guilds })
+            })
+            .then(async res => {
+              if (!res.ok) {
+                console.error('Failed to fetch shared guilds, status:', res.status);
+                return [];
+              }
+              return res.json();
+            })
+            .then(shared => {
+               sessionStorage.setItem('discord_shared_guilds', JSON.stringify(shared));
+               setSharedGuilds(shared);
+               if (shared.length > 0) {
+                 setSelectedGuildId(prev => (!prev) ? shared[0].id : prev);
+                 setShowInvitePopup(false);
+               } else {
+                 setSelectedGuildId(null);
+                 setShowInvitePopup(true);
+               }
+            })
+            .catch(err => {
+               console.error('Error parsing shared guilds:', err);
+               setSharedGuilds([]);
+               setShowInvitePopup(true);
+            });
+          }
+        })
+        .catch(console.error);
+      }
     }
   }, [token]);
 
@@ -293,6 +323,8 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('discord_token');
+    sessionStorage.removeItem('discord_user');
+    sessionStorage.removeItem('discord_shared_guilds');
     setToken(null);
     setUser(null);
     setSharedGuilds([]);
