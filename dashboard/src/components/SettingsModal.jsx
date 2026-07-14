@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import { API_URL } from '../config';
 
 export default function SettingsModal({ onClose, selectedGuildId }) {
-    const [activeTab, setActiveTab] = useState('import');
+    const [activeTab, setActiveTab] = useState('general');
     
     // Import state
     const [playlistUrl, setPlaylistUrl] = useState('');
@@ -130,6 +130,12 @@ export default function SettingsModal({ onClose, selectedGuildId }) {
 
                 <div className="settings-tabs">
                     <button 
+                        className={`settings-tab ${activeTab === 'general' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('general')}
+                    >
+                        Général
+                    </button>
+                    <button 
                         className={`settings-tab ${activeTab === 'import' ? 'active' : ''}`}
                         onClick={() => setActiveTab('import')}
                     >
@@ -144,6 +150,30 @@ export default function SettingsModal({ onClose, selectedGuildId }) {
                 </div>
 
                 <div className="settings-body">
+                    {activeTab === 'general' && (
+                        <div className="settings-section">
+                            <h3 className="settings-section-title">Paramètres Généraux</h3>
+                            <p className="settings-section-desc" style={{ marginBottom: '2rem' }}>
+                                Gérez votre compte et les invitations du bot Foxy Music.
+                            </p>
+                            <div className="setting-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                                <div className="setting-info" style={{ marginBottom: '1rem' }}>
+                                    <h4>Inviter le bot</h4>
+                                    <p>Vous souhaitez utiliser Foxy Music sur d'autres serveurs ?</p>
+                                </div>
+                                <a 
+                                    href="https://discord.com/api/oauth2/authorize?client_id=1509947523949662380&permissions=8&scope=bot%20applications.commands"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="save-btn"
+                                    style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center', width: 'fit-content' }}
+                                >
+                                    Inviter sur un serveur
+                                </a>
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'import' && (
                         <div className="settings-section">
                             <h3 className="settings-section-title">Importer des Playlists</h3>

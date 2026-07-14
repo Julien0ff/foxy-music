@@ -5,7 +5,7 @@ import QueueList from './components/QueueList';
 import SearchBar from './components/SearchBar';
 import Sidebar from './components/Sidebar';
 import VoiceChannels from './components/VoiceChannels';
-import { Music } from 'lucide-react';
+import { Music, X } from 'lucide-react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import './App.css';
 import { API_URL } from './config';
@@ -77,6 +77,7 @@ function App() {
   
   // Settings and Playlist Import States
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showInvitePopup, setShowInvitePopup] = useState(false);
 
   // Background crossfade state
   const [bgState, setBgState] = useState({
@@ -195,11 +196,18 @@ function App() {
           })
           .then(shared => {
              setSharedGuilds(shared);
-             setSelectedGuildId(prev => (shared.length > 0 && !prev) ? shared[0].id : prev);
+             if (shared.length > 0) {
+               setSelectedGuildId(prev => (!prev) ? shared[0].id : prev);
+               setShowInvitePopup(false);
+             } else {
+               setSelectedGuildId(null);
+               setShowInvitePopup(true);
+             }
           })
           .catch(err => {
              console.error('Error parsing shared guilds:', err);
              setSharedGuilds([]);
+             setShowInvitePopup(true);
           });
         }
       });
@@ -473,6 +481,35 @@ function App() {
           onClose={() => setIsSettingsOpen(false)} 
           selectedGuildId={selectedGuildId} 
         />
+      )}
+
+      {/* Invite Modal */}
+      {showInvitePopup && (
+        <div className="settings-modal" onClick={() => setShowInvitePopup(false)}>
+            <div className="settings-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px', textAlign: 'center' }}>
+                <div className="settings-header" style={{ justifyContent: 'center', position: 'relative' }}>
+                    <h3 className="settings-title">Inviter Foxy Music</h3>
+                    <button className="settings-close" onClick={() => setShowInvitePopup(false)} style={{ position: 'absolute', right: '1.5rem' }}>
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="settings-body" style={{ padding: '2rem 1rem' }}>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: '1.5' }}>
+                        Il semble que nous n'ayons aucun serveur en commun. Invitez le bot sur votre serveur pour commencer à écouter de la musique !
+                    </p>
+                    <a 
+                        href={`https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&permissions=8&scope=bot%20applications.commands`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="save-btn"
+                        style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center', width: '100%', padding: '12px' }}
+                        onClick={() => setShowInvitePopup(false)}
+                    >
+                        Inviter le bot
+                    </a>
+                </div>
+            </div>
+        </div>
       )}
     </div>
   );
