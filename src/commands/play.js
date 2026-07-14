@@ -44,7 +44,7 @@ async function playNext(guildId, client) {
         if (queue.autoplay && queue.history && queue.history.length > 0) {
             console.log(`[Autoplay] Queue empty, fetching related track for guild: ${guildId}`);
             const lastTrack = queue.history[queue.history.length - 1];
-            const searchQuery = `scsearch:${lastTrack.artist || lastTrack.title}`;
+            const searchQuery = `ytmsearch:${lastTrack.artist || lastTrack.title}`;
             
             try {
                 const nodes = Array.from(client.shoukaku.nodes.values());
@@ -462,7 +462,7 @@ module.exports = {
             let shouldForceFinalQuery = false;
             
             if (!query.startsWith('http')) {
-                finalQuery = `scsearch:${query}`;
+                finalQuery = `ytmsearch:${query}`;
                 shouldForceFinalQuery = true;
             }
             

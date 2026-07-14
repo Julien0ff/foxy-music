@@ -73,7 +73,7 @@ module.exports = {
 
             let trackToPlay = null;
             let finalQuery = query;
-            if (!query.startsWith('http')) finalQuery = `scsearch:${query}`;
+            if (!query.startsWith('http')) finalQuery = `ytmsearch:${query}`;
 
             for (const node of nodes) {
                 try {
