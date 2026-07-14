@@ -9,17 +9,17 @@ const PlaylistParser = require('./utils/playlistParser');
 
 function startServer(client) {
     const app = express();
-    
+
     // Support SSL directly in Node.js
     const https = require('https');
     const fs = require('fs');
     const path = require('path');
-    
+
     let server;
     const keyPath = path.join(__dirname, '../server.key');
     const certPath = path.join(__dirname, '../server.cert');
     const hasSSL = fs.existsSync(keyPath) && fs.existsSync(certPath);
-    
+
     if (hasSSL) {
         try {
             const privateKey = fs.readFileSync(keyPath, 'utf8');
@@ -56,7 +56,7 @@ function startServer(client) {
     app.get('/api/bot/info', (req, res) => {
         if (!client.user) return res.status(503).json({ error: 'Bot not ready' });
         const avatarHash = client.user.avatar;
-        const avatarUrl = avatarHash 
+        const avatarUrl = avatarHash
             ? `https://cdn.discordapp.com/avatars/${client.user.id}/${avatarHash}.png?size=256`
             : `https://cdn.discordapp.com/embed/avatars/0.png`;
         res.json({
@@ -94,7 +94,7 @@ function startServer(client) {
     app.post('/api/guilds/:id/config', (req, res) => {
         const guildId = req.params.id;
         const updates = req.body;
-        
+
         // Only allow safe fields to be updated
         const allowedFields = ['twentyFourSeven', 'djRoleId', 'defaultVolume', 'autoplay'];
         const safeUpdates = {};
@@ -103,14 +103,14 @@ function startServer(client) {
                 safeUpdates[key] = updates[key];
             }
         }
-        
+
         const config = updateGuildConfig(guildId, safeUpdates);
-        
+
         // Apply autoplay to active queue if present
         if (safeUpdates.autoplay !== undefined && global.queues && global.queues.has(guildId)) {
             global.queues.get(guildId).autoplay = safeUpdates.autoplay;
         }
-        
+
         res.json({ success: true, config });
     });
 
@@ -118,7 +118,7 @@ function startServer(client) {
     app.get('/api/guilds/:id/roles', (req, res) => {
         const guild = client.guilds.cache.get(req.params.id);
         if (!guild) return res.status(404).json({ error: 'Guild not found' });
-        
+
         const roles = guild.roles.cache
             .filter(r => r.id !== guild.id && !r.managed) // Exclude @everyone and bot-managed roles
             .sort((a, b) => b.position - a.position)
@@ -127,7 +127,7 @@ function startServer(client) {
                 name: r.name,
                 color: r.hexColor
             }));
-        
+
         res.json(roles);
     });
 
@@ -148,7 +148,7 @@ function startServer(client) {
     app.get('/api/guilds/:id/voice', (req, res) => {
         const guild = client.guilds.cache.get(req.params.id);
         if (!guild) return res.status(404).json({ error: 'Guild not found' });
-        
+
         const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
         const channelsData = voiceChannels.map(c => {
             return {
@@ -165,13 +165,13 @@ function startServer(client) {
                 }))
             };
         });
-        
+
         // Sort channels like Discord: by parent category position, then by channel position within category
         channelsData.sort((a, b) => {
             if (a.parentPosition !== b.parentPosition) return a.parentPosition - b.parentPosition;
             return a.position - b.position;
         });
-        
+
         const botVoiceChannel = guild.members.me?.voice?.channelId || null;
         res.json({ channels: channelsData, botVoiceChannel });
     });
@@ -179,7 +179,7 @@ function startServer(client) {
     app.post('/api/guilds/:id/connect', async (req, res) => {
         const guildId = req.params.id;
         const { channelId } = req.body;
-        
+
         if (!global.queues) global.queues = new Map();
         let queue = global.queues.get(guildId);
         if (!queue) {
@@ -200,7 +200,7 @@ function startServer(client) {
                     });
                 }
                 queue.player = player;
-                
+
                 player.on('start', () => {
                     console.log(`[Player Web API] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
                     updatePanel(client, guildId);
@@ -226,7 +226,7 @@ function startServer(client) {
                     const command = client.commands.get('play');
                     if (command && command.playNext) command.playNext(guildId, client);
                 });
-                
+
                 player.on('error', (error) => {
                     console.error('[Player Web API Error]', error);
                     const command = client.commands.get('play');
@@ -354,7 +354,7 @@ function startServer(client) {
 
             let finalQuery = query;
             let shouldForceFinalQuery = false;
-            
+
             if (!query.startsWith('http')) {
                 finalQuery = `scsearch:${query}`;
                 shouldForceFinalQuery = true;
@@ -363,9 +363,9 @@ function startServer(client) {
             // Prioritize the player's own node to avoid track decode mismatches
             let queue = global.queues ? global.queues.get(guildId) : null;
             const playerNode = queue?.player?.node;
-            
+
             // Order nodes: player's node first, then others as fallback
-            const orderedNodes = playerNode 
+            const orderedNodes = playerNode
                 ? [playerNode, ...nodes.filter(n => n.name !== playerNode.name)]
                 : nodes;
 
@@ -419,7 +419,7 @@ function startServer(client) {
             // Add to queue
             if (!global.queues) global.queues = new Map();
             queue = global.queues.get(guildId);
-            
+
             if (!queue) {
                 queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: 100 };
                 global.queues.set(guildId, queue);
@@ -450,7 +450,7 @@ function startServer(client) {
                                     deaf: true
                                 });
                                 queue.player = player;
-                                
+
                                 player.on('start', () => {
                                     console.log(`[Player Web API Auto] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
                                     updatePanel(client, guildId);
@@ -476,7 +476,7 @@ function startServer(client) {
                                     const command = client.commands.get('play');
                                     if (command && command.playNext) command.playNext(guildId, client);
                                 });
-                                
+
                                 player.on('error', (error) => {
                                     console.error('[Player Web API Auto Error]', error);
                                     const command = client.commands.get('play');
@@ -518,7 +518,7 @@ function startServer(client) {
                     console.error('Web Play Error:', e);
                 }
             }
-            
+
             if (global.io) {
                 global.io.to(`queue_${guildId}`).emit('queue_update', {
                     currentTrack: queue.currentTrack,
@@ -544,7 +544,7 @@ function startServer(client) {
         if (queue && queue.player && volume !== undefined) {
             queue.volume = Math.max(10, Math.min(200, volume));
             queue.player.setGlobalVolume(queue.volume);
-            
+
             if (global.io) {
                 global.io.to(`queue_${req.params.id}`).emit('queue_update', {
                     currentTrack: queue.currentTrack,
@@ -569,7 +569,7 @@ function startServer(client) {
             return res.status(400).json({ error: 'Index invalide ou file d\'attente introuvable' });
         }
         const removed = queue.tracks.splice(index, 1)[0];
-        
+
         if (global.io) {
             global.io.to(`queue_${guildId}`).emit('queue_update', {
                 currentTrack: queue.currentTrack,
@@ -589,9 +589,9 @@ function startServer(client) {
         const guildId = req.params.id;
         const queue = global.queues ? global.queues.get(guildId) : null;
         if (!queue) return res.status(400).json({ error: 'File d\'attente active introuvable' });
-        
+
         queue.tracks = [];
-        
+
         if (global.io) {
             global.io.to(`queue_${guildId}`).emit('queue_update', {
                 currentTrack: queue.currentTrack,
@@ -613,13 +613,13 @@ function startServer(client) {
         if (!queue || queue.tracks.length === 0) {
             return res.status(400).json({ error: 'La file d\'attente est vide' });
         }
-        
+
         // Fisher-Yates Shuffle
         for (let i = queue.tracks.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [queue.tracks[i], queue.tracks[j]] = [queue.tracks[j], queue.tracks[i]];
         }
-        
+
         if (global.io) {
             global.io.to(`queue_${guildId}`).emit('queue_update', {
                 currentTrack: queue.currentTrack,
@@ -643,7 +643,7 @@ function startServer(client) {
         }
 
         const { filter } = req.body; // 'bassboost', 'nightcore', 'vaporwave', '8d', 'karaoke', 'clear'
-        
+
         try {
             if (filter === 'clear') {
                 await queue.player.clearFilters();
@@ -725,18 +725,18 @@ function startServer(client) {
 
             const node = client.shoukaku.nodes.values().next().value;
             if (!node) throw new Error('Aucun nœud Lavalink disponible.');
-            
+
             const lavalinkResult = await node.rest.resolve(url);
             const loadType = lavalinkResult?.loadType?.toLowerCase();
-            
+
             if (!lavalinkResult || loadType === 'empty' || loadType === 'error') {
                 throw new Error('Impossible de charger ce lien. Assure-toi que c\'est un lien valide (Spotify, Apple Music, etc.).');
             }
-            
+
             // Handle both playlist (data.tracks) and single track (data) or search array (data)
             let rawTracks = [];
             let playlistName = 'Importation';
-            
+
             if (loadType === 'playlist') {
                 rawTracks = lavalinkResult.data.tracks || [];
                 playlistName = lavalinkResult.data.info?.name || 'Playlist Importée';
@@ -746,7 +746,7 @@ function startServer(client) {
                 rawTracks = [lavalinkResult.data];
                 playlistName = lavalinkResult.data.info.title || 'Titre Importé';
             }
-            
+
             let result = {
                 name: playlistName,
                 tracks: rawTracks.map(t => ({
@@ -802,7 +802,7 @@ function startServer(client) {
                                 });
                                 queue.player = player;
                                 player.setGlobalVolume(queue.volume);
-                                
+
                                 player.on('start', () => {
                                     console.log(`[Player Web API Import] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
                                     updatePanel(client, guildId);
@@ -843,7 +843,7 @@ function startServer(client) {
             }
 
             const isAlreadyPlaying = !!queue.currentTrack;
-            
+
             // Map imported playlist tracks to queue items
             const tracksToAdd = result.tracks.map(t => ({
                 title: t.title,
@@ -859,7 +859,7 @@ function startServer(client) {
             queue.tracks.push(...tracksToAdd);
 
             emitProgress({ status: 'done', message: `${tracksToAdd.length} pistes ajoutées à la file`, total: tracksToAdd.length, name: result.name });
-            
+
             res.json({ success: true, name: result.name, count: tracksToAdd.length });
 
             // Start playing immediately if nothing is currently playing
@@ -939,11 +939,11 @@ function startServer(client) {
         const { url } = req.body;
         const userId = req.params.id;
         if (!url) return res.status(400).json({ error: 'Missing URL' });
-        
+
         try {
             const node = client.shoukaku.nodes.values().next().value;
             if (!node) throw new Error('Aucun nœud Lavalink disponible');
-            
+
             const result = await node.rest.resolve(url);
             if (!result || result.loadType === 'empty' || result.loadType === 'error') {
                 throw new Error('Playlist introuvable');
@@ -970,9 +970,9 @@ function startServer(client) {
             const updatedImports = { ...profile.importedPlaylists };
             updatedImports.spotify = updatedImports.spotify || [];
             updatedImports.spotify.push({ name: playlistName, tracks: tracksToAdd });
-            
+
             updateUserProfile(userId, { importedPlaylists: updatedImports });
-            
+
             res.json({ success: true, name: playlistName, count: tracksToAdd.length });
         } catch (e) {
             res.status(500).json({ error: e.message });
@@ -984,11 +984,11 @@ function startServer(client) {
         const { url } = req.body;
         const userId = req.params.id;
         if (!url) return res.status(400).json({ error: 'Missing URL' });
-        
+
         try {
             const node = client.shoukaku.nodes.values().next().value;
             if (!node) throw new Error('Aucun nœud Lavalink disponible');
-            
+
             const result = await node.rest.resolve(url);
             if (!result || result.loadType === 'empty' || result.loadType === 'error') {
                 throw new Error('Playlist introuvable');
@@ -1015,18 +1015,93 @@ function startServer(client) {
             const updatedImports = { ...profile.importedPlaylists };
             updatedImports.appleMusic = updatedImports.appleMusic || [];
             updatedImports.appleMusic.push({ name: playlistName, tracks: tracksToAdd });
-            
+
             updateUserProfile(userId, { importedPlaylists: updatedImports });
-            
+
             res.json({ success: true, name: playlistName, count: tracksToAdd.length });
         } catch (e) {
             res.status(500).json({ error: e.message });
         }
     });
 
+    // --- Desktop API: Search & Streaming (Phase 4) ---
+    app.get('/api/search', async (req, res) => {
+        const { q } = req.query;
+        if (!q) return res.status(400).json({ error: 'Missing query (q)' });
+
+        try {
+            const https = require('https');
+            const url = `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=15`;
+
+            https.get(url, (response) => {
+                let data = '';
+                response.on('data', (chunk) => data += chunk);
+                response.on('end', () => {
+                    try {
+                        const json = JSON.parse(data);
+                        const tracks = (json.results || []).map(t => ({
+                            title: t.trackName,
+                            artist: t.artistName,
+                            url: t.previewUrl, // Direct audio stream!
+                            duration: t.trackTimeMillis || 30000,
+                            artworkUrl: t.artworkUrl100 ? t.artworkUrl100.replace('100x100', '600x600') : null
+                        })).filter(t => t.url);
+                        res.json(tracks);
+                    } catch (e) {
+                        res.status(500).json({ error: 'Parse error' });
+                    }
+                });
+            }).on('error', (e) => {
+                res.status(500).json({ error: e.message });
+            });
+        } catch (e) {
+            console.error('[API Search Error]', e);
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    app.get('/api/stream', async (req, res) => {
+        const { q, fallback } = req.query;
+        if (!q) return res.status(400).send('Missing q parameter');
+        
+        try {
+            const play = require('play-dl');
+            
+            // 1. Try SoundCloud search for full song
+            const searched = await play.search(q, { source: { soundcloud: 'tracks' }, limit: 1 });
+            
+            if (searched && searched.length > 0) {
+                const stream = await play.stream(searched[0].url);
+                res.setHeader('Content-Type', 'audio/mpeg');
+                res.setHeader('Transfer-Encoding', 'chunked');
+                stream.stream.pipe(res);
+                
+                stream.stream.on('error', () => {
+                    if (!res.headersSent && fallback) res.redirect(fallback);
+                });
+                return;
+            }
+            
+            // 2. If not found, use fallback (iTunes preview)
+            if (fallback) {
+                return res.redirect(fallback);
+            }
+            
+            res.status(404).send('Not found');
+        } catch (e) {
+            console.error('[Stream Error]', e.message);
+            if (fallback && !res.headersSent) {
+                return res.redirect(fallback);
+            }
+            if (!res.headersSent) {
+                res.status(500).send('Server Error');
+            }
+        }
+    });
+
     io.on('connection', (socket) => {
         console.log('[Web] Nouveau client connecté:', socket.id);
-        
+
         // Client joins a room for a specific server to get real-time queue updates
         socket.on('subscribe_queue', (guildId) => {
             socket.join(`queue_${guildId}`);

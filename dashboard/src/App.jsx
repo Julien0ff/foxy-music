@@ -361,14 +361,6 @@ function App() {
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 boxShadow: 'none'
               }}
-              onClick={(e) => {
-                // Fallback si le protocole ne s'ouvre pas
-                setTimeout(() => {
-                  if(document.hasFocus()) {
-                    alert("L'application Foxy Music ne semble pas être installée. Vous pourrez la télécharger bientôt !");
-                  }
-                }, 2000);
-              }}
             >
               Ouvrir l'application
             </a>

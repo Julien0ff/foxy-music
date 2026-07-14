@@ -64,8 +64,12 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    frame: false, // Frameless window for custom titlebar
     titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#00000000',
+      symbolColor: '#ffffff',
+      height: 38
+    },
     backgroundColor: '#00000000', // Transparent pour le glassmorphism
     transparent: true,
     webPreferences: {
@@ -79,15 +83,33 @@ function createWindow() {
   // Dark mode by default
   nativeTheme.themeSource = 'dark';
 
-  if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-    mainWindow.loadURL('http://localhost:5173');
+  // En mode dev, charger le serveur Vite
+  if (process.env.NODE_ENV !== 'production' || process.argv.includes('--dev')) {
+    mainWindow.loadURL('http://localhost:5174');
     // mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // Empêcher l'ouverture de nouveaux onglets pour _blank
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  // Gérer l'ouverture de nouveaux onglets (ex: _blank)
+  mainWindow.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    // Si c'est la popup de connexion Discord, on l'autorise en tant que petite fenêtre Electron
+    if (frameName === 'DiscordLogin') {
+      return { 
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 500,
+          height: 750,
+          frame: true,
+          autoHideMenuBar: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true
+          }
+        }
+      };
+    }
+    // Sinon, on ouvre dans le navigateur par défaut
     shell.openExternal(url);
     return { action: 'deny' };
   });

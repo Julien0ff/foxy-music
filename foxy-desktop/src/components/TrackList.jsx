@@ -17,32 +17,43 @@ const TrackList = ({ tracks = [], onPlayTrack }) => {
 
   return (
     <div className="track-list">
-      {tracks.map((track, index) => (
-        <div key={index} className="track-item" onDoubleClick={() => onPlayTrack(track, index)}>
-          <div className="track-index">
-            <span className="index-num">{index + 1}</span>
-            <button className="play-btn" onClick={() => onPlayTrack(track, index)}>
-              <Play size={14} fill="currentColor" />
-            </button>
-          </div>
-          
-          <div className="track-info-col">
-            <div className="track-title">{track.title}</div>
-            <div className="track-artist">{track.artist}</div>
-          </div>
-          
-          <div className="track-album">
-            {track.album || "Single"}
-          </div>
-          
-          <div className="track-actions">
-            <span className="track-duration">{formatTime(track.duration)}</span>
-            <button className="more-btn">
-              <MoreHorizontal size={18} />
-            </button>
-          </div>
-        </div>
-      ))}
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <tbody>
+          {tracks.map((track, index) => (
+            <tr 
+              key={index} 
+              className="track-row"
+              onDoubleClick={() => onPlayTrack(track, index)}
+              style={{ cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}
+            >
+              <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', width: '40px', textAlign: 'center' }}>
+                {index + 1}
+              </td>
+              <td style={{ padding: '12px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {track.artworkUrl && (
+                    <img src={track.artworkUrl} alt="" style={{ width: '40px', height: '40px', borderRadius: '4px', objectFit: 'cover' }} />
+                  )}
+                  <div>
+                    <div style={{ color: 'var(--text-primary)', fontWeight: 500, marginBottom: '4px', fontSize: '14px' }}>
+                      {track.title}
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+                      {track.artist}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                {track.album || "Single"}
+              </td>
+              <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'right' }}>
+                {formatTime(track.duration)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

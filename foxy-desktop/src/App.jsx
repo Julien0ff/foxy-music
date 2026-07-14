@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Minimize2, Maximize2, X } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import NowPlayingBar from './components/NowPlayingBar';
@@ -8,11 +8,20 @@ import ArtistPage from './pages/ArtistPage';
 import SearchPage from './pages/SearchPage';
 import LibraryPage from './pages/LibraryPage';
 import ImportPage from './pages/ImportPage';
+import SettingsPage from './pages/SettingsPage';
 import { useAuth } from './contexts/AuthContext';
+import { usePlayer } from './contexts/PlayerContext';
 
 function App() {
   const [currentRoute, setCurrentRoute] = useState('home');
   const { user, loading, logout } = useAuth();
+  const { playTrack } = usePlayer(); // <-- We need this import if not present
+
+  useEffect(() => {
+    window.playTrackGlobally = (track) => {
+      playTrack(track, [track]);
+    };
+  }, [playTrack]);
 
   const handleMinimize = () => window.electron?.window.minimize();
   const handleMaximize = () => window.electron?.window.maximize();
@@ -25,17 +34,14 @@ function App() {
   const renderPage = () => {
     switch (currentRoute) {
       case 'home': return <HomePage />;
-      case 'search': return <SearchPage />;
-      case 'artists': return <ArtistPage />;
-      case 'tracks': 
-      case 'recent':
       case 'playlists': return <LibraryPage />;
-      case 'browse': return <ImportPage />; // Using Browse for Import for now
+      case 'settings': return <SettingsPage />;
+      case 'artist': return <ArtistPage />;
       default: return (
-        <>
-          <h1 style={{ color: 'var(--fox-orange)', fontSize: '3rem', marginBottom: '1rem' }}>{currentRoute.toUpperCase()}</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Contenu de la page en construction...</p>
-        </>
+        <div style={{ textAlign: 'center', marginTop: '4rem' }}>
+          <h1 style={{ color: 'var(--fox-orange)', fontSize: '3rem', marginBottom: '1rem' }}>BIENVENUE</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>Sélectionnez une option dans le menu de gauche.</p>
+        </div>
       );
     }
   };
@@ -46,11 +52,6 @@ function App() {
         <div className="titlebar-content">
           <span className="app-title">Foxy Music</span>
         </div>
-        <div className="window-controls no-drag">
-          <button className="window-btn minimize" onClick={handleMinimize}><Minimize2 size={14} /></button>
-          <button className="window-btn maximize" onClick={handleMaximize}><Maximize2 size={14} /></button>
-          <button className="window-btn close" onClick={handleClose}><X size={14} /></button>
-        </div>
       </div>
       
       {!user ? (
@@ -60,7 +61,11 @@ function App() {
       ) : (
         <>
           <div className="main-layout" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <Sidebar currentRoute={currentRoute} onRouteChange={setCurrentRoute} onLogout={logout} />
+            <Sidebar 
+              currentRoute={currentRoute} 
+              onRouteChange={setCurrentRoute} 
+              onLogout={logout} 
+            />
             
             <div className="main-content" style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
               {renderPage()}

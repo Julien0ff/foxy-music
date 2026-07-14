@@ -26,8 +26,21 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('discord_token', accessToken);
         // Clean URL
         window.history.replaceState(null, '', window.location.pathname);
+        
+        // Si on est dans une popup (window.opener existe), on la ferme après avoir passé le token
+        if (window.opener) {
+          window.close();
+        }
       }
     }
+
+    // Écouter les changements de localStorage pour synchroniser la popup avec la fenêtre principale
+    const handleStorage = (e) => {
+      if (e.key === 'discord_token' && e.newValue) {
+        setToken(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
 
     if (token) {
       // Validate token and fetch user
@@ -51,17 +64,24 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
+
+    return () => window.removeEventListener('storage', handleStorage);
   }, [token]);
 
   const login = () => {
-    // We use the root URL since the user is serving it from localhost:5173
+    // We use the root URL since the user is serving it from localhost:5174
     const CLIENT_ID = '1509947523949662380'; // Remplacez par votre vrai Client ID (celui du bot)
-    const REDIRECT_URI = encodeURIComponent('http://localhost:5173');
+    const REDIRECT_URI = encodeURIComponent('http://localhost:5174');
     // We must use response_type=token so Discord returns the token in the URL hash
     const OAUTH_URL = `https://discord.com/api/oauth2/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=token&scope=identify%20guilds`;
 
-    // Redirect current window instead of opening a new one to keep the state
-    window.location.href = OAUTH_URL;
+    // Open in a popup window instead of replacing the main app window
+    const width = 500;
+    const height = 750;
+    const left = (window.screen.width / 2) - (width / 2);
+    const top = (window.screen.height / 2) - (height / 2);
+    
+    window.open(OAUTH_URL, 'DiscordLogin', `width=${width},height=${height},top=${top},left=${left}`);
   };
 
   const logout = () => {

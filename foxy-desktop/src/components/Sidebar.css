@@ -7,11 +7,6 @@
   display: flex;
   flex-direction: column;
   padding: 1rem 0;
-  -webkit-app-region: drag; /* Allows dragging window from sidebar empty spaces */
-}
-
-.sidebar > * {
-  -webkit-app-region: no-drag;
 }
 
 .sidebar-search {

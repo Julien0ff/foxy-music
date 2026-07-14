@@ -1,61 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GlassPanel from '../components/GlassPanel';
 import TrackList from '../components/TrackList';
-import { Search } from 'lucide-react';
+import { usePlayer } from '../contexts/PlayerContext';
 
-const SearchPage = () => {
-  const [query, setQuery] = useState('');
-  
-  const searchResults = query ? [
-    { title: `${query} (Mix)`, artist: "Various Artists", duration: 250000, album: "Foxy Mixes" },
-    { title: `Meilleur de ${query}`, artist: "Foxy Music", duration: 300000, album: "Essentials" }
-  ] : [];
+const SearchPage = ({ globalSearch }) => {
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const { playTrack } = usePlayer();
+
+  useEffect(() => {
+    if (!globalSearch || globalSearch.trim() === '') {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setLoading(true);
+      // Use highly reliable iTunes API directly instead of proxying through broken Lavalink backend
+      fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(globalSearch)}&entity=song&limit=25`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.results) {
+            const formatted = data.results.map(t => ({
+                title: t.trackName,
+                artist: t.artistName,
+                url: t.previewUrl,
+                duration: t.trackTimeMillis || 30000,
+                artworkUrl: t.artworkUrl100 ? t.artworkUrl100.replace('100x100', '600x600') : null
+            })).filter(t => t.url);
+            setSearchResults(formatted);
+          } else {
+            setSearchResults([]);
+          }
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setSearchResults([]);
+          setLoading(false);
+        });
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [globalSearch]);
 
   return (
     <div className="search-page">
-      <div style={{ position: 'relative', marginBottom: '2rem' }}>
-        <div style={{
-          position: 'absolute',
-          left: '16px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          color: 'var(--text-secondary)'
-        }}>
-          <Search size={20} />
-        </div>
-        <input 
-          type="text" 
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Artistes, morceaux, ou podcasts" 
-          autoFocus
-          style={{
-            width: '100%',
-            padding: '16px 16px 16px 48px',
-            background: 'rgba(0,0,0,0.3)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: '12px',
-            color: 'white',
-            fontSize: '18px',
-            outline: 'none',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
-          }}
-        />
-      </div>
+      <h1 style={{ color: 'var(--fox-orange)', fontSize: '2.5rem', marginBottom: '2rem' }}>
+        Résultats pour "{globalSearch}"
+      </h1>
 
-      {query ? (
-        <section>
-          <h2 style={{ fontSize: '1.25rem', color: 'var(--text-secondary)', marginBottom: '1rem', fontWeight: 600 }}>
-            Meilleurs résultats
-          </h2>
-          <GlassPanel style={{ padding: 0 }}>
-            <TrackList tracks={searchResults} onPlayTrack={() => {}} />
-          </GlassPanel>
-        </section>
-      ) : (
-        <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '4rem' }}>
-          Recherchez tout ce que vous voulez écouter.
-        </div>
+      {loading && <p style={{ color: 'var(--text-secondary)' }}>Recherche en cours...</p>}
+      
+      {!loading && globalSearch && searchResults.length === 0 && (
+        <p style={{ color: 'var(--text-secondary)' }}>Aucun résultat trouvé.</p>
+      )}
+
+      {searchResults.length > 0 && (
+        <GlassPanel style={{ padding: 0 }}>
+          <TrackList tracks={searchResults} onPlayTrack={(track) => playTrack(track, searchResults)} />
+        </GlassPanel>
       )}
     </div>
   );
