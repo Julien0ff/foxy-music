@@ -25,7 +25,7 @@ function cleanTitle(title) {
 }
 
 function extractArtistAndTitle(rawTitle) {
-    // Essaie d'extraire "Artiste - Titre"
+    // Essaie d'extraire "Artiste - Titre" ou "Titre - Artiste"
     const match = rawTitle.match(/^(.+?)\s*[-|–—]\s*(.+)$/);
     if (match) {
         return { artist: cleanTitle(match[1]), track: cleanTitle(match[2]) };
@@ -97,16 +97,17 @@ async function fetchLyrics(trackTitle, artistName = '', durationMs = 0) {
 
         // 1. Essayer /api/get si on a l'artiste et le titre pour un match exact très rapide
         if (finalArtist && finalTrack) {
-            let getUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(finalArtist)}&track_name=${encodeURIComponent(finalTrack)}`;
-            if (durationMs > 0) getUrl += `&duration=${Math.round(durationMs / 1000)}`;
-            
-            try {
-                const getRes = await fetchWithTimeout(getUrl, { headers }, 2000);
-                if (getRes.ok) {
-                    best = await getRes.json();
-                }
-            } catch (err) {
-                // Ignore timeout and fallback to search
+            // Try both orders: Artist - Track and Track - Artist
+            for (const [a, t] of [[finalArtist, finalTrack], [finalTrack, finalArtist]]) {
+                let getUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(a)}&track_name=${encodeURIComponent(t)}`;
+                if (durationMs > 0) getUrl += `&duration=${Math.round(durationMs / 1000)}`;
+                try {
+                    const getRes = await fetchWithTimeout(getUrl, { headers }, 1500);
+                    if (getRes.ok) {
+                        best = await getRes.json();
+                        break;
+                    }
+                } catch (err) {}
             }
         }
 
