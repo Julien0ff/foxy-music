@@ -6,12 +6,6 @@ const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
     {
-        name: 'G3V-Lavalink',
-        url: 'lava.g3v.co.uk:9008',
-        auth: 'lavalinklol',
-        secure: false
-    },
-    {
         name: 'Trinium-Lavalink',
         url: 'lavalink.triniumhost.com:4333',
         auth: 'free',
