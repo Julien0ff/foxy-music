@@ -9,18 +9,28 @@
  */
 function cleanTitle(title) {
     if (!title) return '';
-    return title
+    let cleaned = title
         .replace(/\(.*?\)/g, '')           // Retire les parenthèses
         .replace(/\[.*?\]/g, '')           // Retire les crochets
         .replace(/【.*?】/g, '')           // Retire les crochets japonais
-        .replace(/official\s*(music)?\s*video/gi, '')
+        .replace(/official\s*(music|lyric)?\s*(video|audio)?/gi, '')
         .replace(/lyrics?/gi, '')
         .replace(/audio/gi, '')
-        .replace(/hq|hd/gi, '')
+        .replace(/hq|hd|4k|8k/gi, '')
         .replace(/ft\.|feat\./gi, '')
         .replace(/[-_|]/g, ' ')            // Remplace les séparateurs par des espaces
         .replace(/\s{2,}/g, ' ')           // Normalise les espaces multiples
         .trim();
+    return cleaned;
+}
+
+function extractArtistAndTitle(rawTitle) {
+    // Essaie d'extraire "Artiste - Titre"
+    const match = rawTitle.match(/^(.+?)\s*[-|–—]\s*(.+)$/);
+    if (match) {
+        return { artist: cleanTitle(match[1]), track: cleanTitle(match[2]) };
+    }
+    return { artist: '', track: cleanTitle(rawTitle) };
 }
 
 /**
@@ -53,27 +63,74 @@ function parseLrc(lrcText) {
  * - plain: string de paroles brutes (non synchronisées)
  * - synced: tableau [{ time: ms, text: string }] (vide si non dispo)
  */
-async function fetchLyrics(trackTitle, artistName = '') {
-    const cleanedTitle = cleanTitle(trackTitle);
-    const query = artistName ? `${cleanedTitle} ${artistName}` : cleanedTitle;
+async function fetchLyrics(trackTitle, artistName = '', durationMs = 0) {
+    let finalArtist = artistName;
+    let finalTrack = trackTitle;
+
+    if (!finalArtist) {
+        const extracted = extractArtistAndTitle(trackTitle);
+        if (extracted.artist) {
+            finalArtist = extracted.artist;
+            finalTrack = extracted.track;
+        } else {
+            finalTrack = cleanTitle(trackTitle);
+        }
+    } else {
+        finalTrack = cleanTitle(trackTitle);
+        finalArtist = cleanTitle(artistName);
+    }
+
+    const query = finalArtist ? `${finalTrack} ${finalArtist}` : finalTrack;
+    
+    // Timeout function to avoid hanging requests
+    const fetchWithTimeout = (url, options, timeout = 3000) => {
+        return Promise.race([
+            fetch(url, options),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
+        ]);
+    };
+
+    const headers = { 'User-Agent': 'Foxy Music Bot/2.1 (https://github.com/Julien0ff/foxy-music)' };
 
     try {
-        // 1. Essayer la recherche par texte libre
-        const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-        const searchRes = await fetch(searchUrl, {
-            headers: { 'User-Agent': 'Foxy Music Bot/2.1 (https://github.com/Julien0ff/foxy-music)' }
-        });
+        let best = null;
 
-        if (!searchRes.ok) return null;
-        const results = await searchRes.json();
-        if (!results || results.length === 0) return null;
+        // 1. Essayer /api/get si on a l'artiste et le titre pour un match exact très rapide
+        if (finalArtist && finalTrack) {
+            let getUrl = `https://lrclib.net/api/get?artist_name=${encodeURIComponent(finalArtist)}&track_name=${encodeURIComponent(finalTrack)}`;
+            if (durationMs > 0) getUrl += `&duration=${Math.round(durationMs / 1000)}`;
+            
+            try {
+                const getRes = await fetchWithTimeout(getUrl, { headers }, 2000);
+                if (getRes.ok) {
+                    best = await getRes.json();
+                }
+            } catch (err) {
+                // Ignore timeout and fallback to search
+            }
+        }
 
-        // Prendre le premier résultat avec les paroles les plus longues
-        const best = results.find(r => r.syncedLyrics) || results.find(r => r.plainLyrics) || results[0];
+        // 2. Si pas de match exact, utiliser la recherche libre
+        if (!best) {
+            const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+            const searchRes = await fetchWithTimeout(searchUrl, { headers }, 3000);
+            
+            if (searchRes.ok) {
+                const results = await searchRes.json();
+                if (results && results.length > 0) {
+                    // Privilégier les résultats avec paroles synchronisées et correspondant au titre/artiste
+                    best = results.find(r => r.syncedLyrics && r.trackName.toLowerCase().includes(finalTrack.toLowerCase())) 
+                        || results.find(r => r.syncedLyrics)
+                        || results.find(r => r.plainLyrics) 
+                        || results[0];
+                }
+            }
+        }
+
         if (!best) return null;
 
         return {
-            title: best.trackName || cleanedTitle,
+            title: best.trackName || finalTrack,
             artist: best.artistName || '',
             album: best.albumName || '',
             duration: best.duration || 0,
@@ -87,4 +144,4 @@ async function fetchLyrics(trackTitle, artistName = '') {
     }
 }
 
-module.exports = { fetchLyrics, parseLrc, cleanTitle };
+module.exports = { fetchLyrics, parseLrc, cleanTitle, extractArtistAndTitle };

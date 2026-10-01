@@ -120,33 +120,40 @@ async function playNext(guildId, client) {
         try {
             const nodes = Array.from(client.shoukaku.nodes.values());
             let resolved = false;
-            for (const node of nodes) {
+            const resolvePromises = nodes.map(async (node) => {
                 let resolveQuery = track.query || track.title;
                 if (track.isImported) {
                     resolveQuery = `ytmsearch:${track.title} ${track.artist || ''}`.trim();
                 }
-                const result = await node.rest.resolve(resolveQuery);
-                if (result && result.data) {
-                    let trackToPlay = null;
-                    if (result.loadType === 'playlist') {
-                        trackToPlay = result.data.tracks[0];
-                    } else if (result.loadType === 'track') {
-                        trackToPlay = result.data;
-                    } else if (result.loadType === 'search') {
-                        trackToPlay = result.data[0];
-                    }
-                    
-                    if (trackToPlay) {
-                        
-                        track.encoded = trackToPlay.encoded;
-                        track.url = trackToPlay.info.uri;
-                        track.duration = trackToPlay.info.length;
-                        track.artworkUrl = trackToPlay.info.artworkUrl || track.artworkUrl;
-                        track.title = trackToPlay.info.title;
-                        resolved = true;
-                        break;
-                    }
+                const res = await node.rest.resolve(resolveQuery);
+                if (res && res.data && res.loadType !== 'empty' && res.loadType !== 'error') {
+                    return { result: res, node };
                 }
+                throw new Error('Not found or error');
+            });
+
+            try {
+                const fastest = await Promise.any(resolvePromises);
+                const result = fastest.result;
+                let trackToPlay = null;
+                if (result.loadType === 'playlist') {
+                    trackToPlay = result.data.tracks[0];
+                } else if (result.loadType === 'track') {
+                    trackToPlay = result.data;
+                } else if (result.loadType === 'search') {
+                    trackToPlay = result.data[0];
+                }
+                
+                if (trackToPlay) {
+                    track.encoded = trackToPlay.encoded;
+                    track.url = trackToPlay.info.uri;
+                    track.duration = trackToPlay.info.length;
+                    track.artworkUrl = trackToPlay.info.artworkUrl || track.artworkUrl;
+                    track.title = trackToPlay.info.title;
+                    resolved = true;
+                }
+            } catch (err) {
+                // Promise.any throws if all promises reject
             }
             if (!resolved) {
                 console.warn(`[Player] Could not resolve track "${track.title}". Skipping to next.`);
@@ -468,25 +475,30 @@ module.exports = {
             
             let result = null;
             let resolvedNode = null;
-            for (const node of orderedNodes) {
-                try {
-                    if (shouldForceFinalQuery) {
-                        result = await node.rest.resolve(finalQuery);
-                    } else {
-                        result = await node.rest.resolve(query);
-                        if (!result || result.loadType === 'empty' || result.loadType === 'error') {
-                            if (finalQuery !== query) {
-                                result = await node.rest.resolve(finalQuery);
-                            }
+            const searchPromises = orderedNodes.map(async (node) => {
+                let res;
+                if (shouldForceFinalQuery) {
+                    res = await node.rest.resolve(finalQuery);
+                } else {
+                    res = await node.rest.resolve(query);
+                    if (!res || res.loadType === 'empty' || res.loadType === 'error') {
+                        if (finalQuery !== query) {
+                            res = await node.rest.resolve(finalQuery);
                         }
                     }
-                    if (result && result.loadType !== 'empty' && result.loadType !== 'error') {
-                        resolvedNode = node;
-                        break;
-                    }
-                } catch (e) {
-                    console.log(`[Lavalink Error] Node ${node.name} failed to resolve:`, e.message);
                 }
+                if (res && res.loadType !== 'empty' && res.loadType !== 'error') {
+                    return { result: res, node };
+                }
+                throw new Error('Not found or error');
+            });
+
+            try {
+                const fastest = await Promise.any(searchPromises);
+                result = fastest.result;
+                resolvedNode = fastest.node;
+            } catch (e) {
+                console.log(`[Lavalink Error] All nodes failed to resolve query.`);
             }
 
             if (!result || result.loadType === 'empty' || result.loadType === 'error') {
