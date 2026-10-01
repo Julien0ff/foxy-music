@@ -5,31 +5,11 @@ const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord
 const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
-    // --- Reliable nodes (confirmed v4) ---
     {
-        name: 'Mon Lavalink Privé',
-        url: 'prem-eu3.bot-hosting.net:20626',
-        auth: 'youshallnotpass',
+        name: 'Serenetia-Free',
+        url: 'lavalinkv4.serenetia.com:80',
+        auth: 'https://seretia.link/discord',
         secure: false
-    },
-    {
-        name: 'TriniumHost-4333',
-        url: 'lavalink.triniumhost.com:4333',
-        auth: 'free',
-        secure: false
-    },
-    {
-        name: 'NyxBot-SG',
-        url: 'sg1-nodelink.nyxbot.app:3000',
-        auth: 'nyxbot.app/support',
-        secure: false
-    },
-    // --- SSL nodes ---
-    {
-        name: 'TriniumHost-SSL',
-        url: 'lavalink-v4.triniumhost.com:443',
-        auth: 'free',
-        secure: true
     }
 ];
 const fs = require('fs');
