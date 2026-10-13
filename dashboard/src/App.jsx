@@ -333,13 +333,18 @@ function App() {
 
   const handleConnectBot = async (channelId) => {
     try {
-      await fetch(`${API_URL}/api/guilds/${selectedGuildId}/connect`, {
+      const res = await fetch(`${API_URL}/api/guilds/${selectedGuildId}/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ channelId })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Erreur lors de la connexion du bot au salon vocal.');
+      }
     } catch (e) {
       console.error(e);
+      alert('Erreur réseau lors de la tentative de connexion au salon vocal.');
     }
   };
 

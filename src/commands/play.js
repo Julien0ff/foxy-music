@@ -47,7 +47,7 @@ async function playNext(guildId, client) {
             const searchQuery = `ytmsearch:${lastTrack.artist || lastTrack.title}`;
             
             try {
-                const nodes = Array.from(client.shoukaku.nodes.values());
+                const nodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
                 let autoplayTrack = null;
                 for (const node of nodes) {
                     const result = await node.rest.resolve(searchQuery);
@@ -118,7 +118,7 @@ async function playNext(guildId, client) {
     if (!track.encoded && !track.url) {
         console.log(`[Player] Resolving unresolved track in playNext: ${track.title}`);
         try {
-            const nodes = Array.from(client.shoukaku.nodes.values());
+            const nodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
             let resolved = false;
             const resolvePromises = nodes.map(async (node) => {
                 let resolveQuery = track.query || track.title;
@@ -203,7 +203,7 @@ async function handleLoadFailed(guildId, client, failedTrack) {
     console.log(`[Player Fallback] Track "${failedTrack.title}" failed to load. Attempting SoundCloud fallback...`);
 
     try {
-        const nodes = Array.from(client.shoukaku.nodes.values());
+        const nodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
         const searchQuery = `ytmsearch:${failedTrack.title} ${failedTrack.artist || ''}`.trim();
         
         let result = null;
@@ -414,7 +414,7 @@ module.exports = {
                             if (nextTrack && !nextTrack.encoded) {
                                 console.log(`[Prefetch] Pre-resolving next track in background: ${nextTrack.title || nextTrack.url}`);
                                 try {
-                                    const nodes = Array.from(interaction.client.shoukaku.nodes.values());
+                                    const nodes = Array.from(interaction.client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
                                     for (const node of nodes) {
                                         let finalQuery = nextTrack.url || nextTrack.query;
                                         if (nextTrack.isImported) {
@@ -454,7 +454,7 @@ module.exports = {
             }
         }
 
-        const nodes = Array.from(interaction.client.shoukaku.nodes.values());
+        const nodes = Array.from(interaction.client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
         if (nodes.length === 0) {
             return interaction.followUp('❌ Aucun nœud Lavalink n\'est disponible pour le moment.');
         }

@@ -48,6 +48,62 @@ function startServer(client) {
     app.use(cors());
     app.use(express.json({ limit: '10mb' }));
 
+    // Helper: récupérer un node Lavalink connecté (en ligne)
+    function getIdealNode(clientInstance) {
+        if (!clientInstance?.shoukaku?.nodes) return null;
+        const onlineNodes = Array.from(clientInstance.shoukaku.nodes.values()).filter(n => n.state === 1);
+        if (onlineNodes.length === 0) return null;
+        if (typeof clientInstance.shoukaku.options?.nodeResolver === 'function') {
+            try {
+                const resolved = clientInstance.shoukaku.options.nodeResolver(clientInstance.shoukaku.nodes);
+                if (resolved && resolved.state === 1) return resolved;
+            } catch (_) {}
+        }
+        return onlineNodes[0];
+    }
+
+    // Helper: configurer les écouteurs sur le player Shoukaku
+    function setupPlayerListeners(playerInstance, queueInstance, gId, clientInstance) {
+        playerInstance.removeAllListeners();
+
+        playerInstance.on('start', () => {
+            console.log(`[Player Web API] Now streaming: ${queueInstance.currentTrack?.title || 'Unknown Track'}`);
+            updatePanel(clientInstance, gId);
+        });
+
+        playerInstance.on('end', (reason) => {
+            console.log(`[Player Web API] Track ended. Reason: ${reason.reason}`);
+            if (reason.reason === 'REPLACED') return;
+            const command = clientInstance.commands.get('play');
+            if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
+                command.handleLoadFailed(gId, clientInstance, queueInstance.currentTrack);
+            } else if (command && command.playNext) {
+                command.playNext(gId, clientInstance);
+            }
+        });
+
+        playerInstance.on('exception', (exception) => {
+            console.error('[Player Web API Exception]', exception.exception?.message || exception.exception || exception);
+        });
+
+        playerInstance.on('stuck', (stuck) => {
+            console.warn('[Player Web API Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
+            const command = clientInstance.commands.get('play');
+            if (command && command.playNext) command.playNext(gId, clientInstance);
+        });
+
+        playerInstance.on('error', (error) => {
+            console.error('[Player Web API Error]', error);
+            const command = clientInstance.commands.get('play');
+            if (command && command.playNext) command.playNext(gId, clientInstance);
+        });
+
+        playerInstance.on('closed', (reason) => {
+            console.warn(`[Player Web API Closed] ${reason?.reason || 'Connection closed'}`);
+            if (queueInstance.player === playerInstance) queueInstance.player = null;
+        });
+    }
+
     app.get('/', (req, res) => {
         res.send({ status: 'API Online', bot: client.user?.tag });
     });
@@ -180,6 +236,27 @@ function startServer(client) {
         const guildId = req.params.id;
         const { channelId } = req.body;
 
+        if (!channelId) {
+            return res.status(400).json({ error: 'Identifiant du salon vocal manquant.' });
+        }
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) {
+            return res.status(404).json({ error: 'Serveur Discord non trouvé.' });
+        }
+
+        const channel = guild.channels.cache.get(channelId);
+        if (!channel || !channel.isVoiceBased()) {
+            return res.status(400).json({ error: 'Salon vocal invalide ou introuvable.' });
+        }
+
+        // Vérifier si au moins un serveur Lavalink est en ligne
+        const onlineNodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
+        if (onlineNodes.length === 0) {
+            console.error(`[API /connect] Impossible de se connecter : aucun serveur Lavalink n'est connecté.`);
+            return res.status(503).json({ error: 'Aucun serveur Lavalink n\'est en ligne pour le moment. Veuillez patienter ou vérifier la configuration.' });
+        }
+
         if (!global.queues) global.queues = new Map();
         let queue = global.queues.get(guildId);
         if (!queue) {
@@ -188,55 +265,34 @@ function startServer(client) {
         }
 
         try {
-            if (!queue.player) {
-                // Check if there's already a Shoukaku player for this guild (e.g. from a slash command)
-                let player = client.shoukaku.players.get(guildId);
-                if (!player) {
-                    player = await client.shoukaku.joinVoiceChannel({
-                        guildId: guildId,
-                        channelId: channelId,
-                        shardId: 0,
-                        deaf: true
-                    });
-                }
+            let player = queue.player || client.shoukaku.players.get(guildId);
+
+            // Si le bot est déjà connecté dans ce salon exact
+            if (player && player.channelId === channelId) {
                 queue.player = player;
-
-                player.on('start', () => {
-                    console.log(`[Player Web API] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
-                    updatePanel(client, guildId);
-                });
-
-                player.on('end', (reason) => {
-                    console.log(`[Player Web API] Track ended. Reason: ${reason.reason}`);
-                    if (reason.reason === 'REPLACED') return;
-                    const command = client.commands.get('play');
-                    if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
-                        command.handleLoadFailed(guildId, client, queue.currentTrack);
-                    } else if (command && command.playNext) {
-                        command.playNext(guildId, client);
-                    }
-                });
-
-                player.on('exception', (exception) => {
-                    console.error('[Player Web API Exception]', exception.exception?.message || exception.exception || exception);
-                });
-
-                player.on('stuck', (stuck) => {
-                    console.warn('[Player Web API Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
-                    const command = client.commands.get('play');
-                    if (command && command.playNext) command.playNext(guildId, client);
-                });
-
-                player.on('error', (error) => {
-                    console.error('[Player Web API Error]', error);
-                    const command = client.commands.get('play');
-                    if (command && command.playNext) command.playNext(guildId, client);
-                });
+                return res.json({ success: true, alreadyConnected: true });
             }
-            res.json({ success: true });
+
+            // Déconnexion propre si on change de salon
+            if (player && player.channelId !== channelId) {
+                try {
+                    await client.shoukaku.leaveVoiceChannel(guildId).catch(() => {});
+                } catch (_) {}
+            }
+
+            player = await client.shoukaku.joinVoiceChannel({
+                guildId: guildId,
+                channelId: channelId,
+                shardId: 0,
+                deaf: true
+            });
+            queue.player = player;
+            setupPlayerListeners(player, queue, guildId, client);
+
+            res.json({ success: true, channelId });
         } catch (e) {
-            console.error('Error connecting:', e);
-            res.status(500).json({ error: 'Failed to connect' });
+            console.error(`[API /connect] Erreur lors de la connexion au salon vocal ${channelId} (${guildId}):`, e);
+            res.status(500).json({ error: e.message || 'Échec de la connexion au salon vocal' });
         }
     });
 
@@ -316,8 +372,8 @@ function startServer(client) {
         const { query } = req.body;
         if (!query) return res.status(400).json({ error: 'Missing query' });
 
-        const nodes = Array.from(client.shoukaku.nodes.values());
-        if (nodes.length === 0) return res.status(500).json({ error: 'No Lavalink node available' });
+        const nodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
+        if (nodes.length === 0) return res.status(503).json({ error: 'Aucun serveur Lavalink disponible pour le moment' });
 
         try {
             // Helpers
@@ -450,38 +506,7 @@ function startServer(client) {
                                     deaf: true
                                 });
                                 queue.player = player;
-
-                                player.on('start', () => {
-                                    console.log(`[Player Web API Auto] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
-                                    updatePanel(client, guildId);
-                                });
-
-                                player.on('end', (reason) => {
-                                    console.log(`[Player Web API Auto] Track ended. Reason: ${reason.reason}`);
-                                    if (reason.reason === 'REPLACED') return;
-                                    const command = client.commands.get('play');
-                                    if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
-                                        command.handleLoadFailed(guildId, client, queue.currentTrack);
-                                    } else if (command && command.playNext) {
-                                        command.playNext(guildId, client);
-                                    }
-                                });
-
-                                player.on('exception', (exception) => {
-                                    console.error('[Player Web API Auto Exception]', exception.exception?.message || exception.exception || exception);
-                                });
-
-                                player.on('stuck', (stuck) => {
-                                    console.warn('[Player Web API Auto Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
-                                    const command = client.commands.get('play');
-                                    if (command && command.playNext) command.playNext(guildId, client);
-                                });
-
-                                player.on('error', (error) => {
-                                    console.error('[Player Web API Auto Error]', error);
-                                    const command = client.commands.get('play');
-                                    if (command && command.playNext) command.playNext(guildId, client);
-                                });
+                                setupPlayerListeners(player, queue, guildId, client);
                             } catch (err) {
                                 console.error('Failed to auto-connect voice channel:', err);
                             }
@@ -723,8 +748,8 @@ function startServer(client) {
 
             emitProgress({ status: 'parsing', message: 'Analyse de la playlist via Lavalink...' });
 
-            const node = client.shoukaku.nodes.values().next().value;
-            if (!node) throw new Error('Aucun nœud Lavalink disponible.');
+            const node = getIdealNode(client);
+            if (!node) throw new Error('Aucun nœud Lavalink disponible pour le moment.');
 
             const lavalinkResult = await node.rest.resolve(url);
             const loadType = lavalinkResult?.loadType?.toLowerCase();
@@ -802,34 +827,7 @@ function startServer(client) {
                                 });
                                 queue.player = player;
                                 player.setGlobalVolume(queue.volume);
-
-                                player.on('start', () => {
-                                    console.log(`[Player Web API Import] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
-                                    updatePanel(client, guildId);
-                                });
-                                player.on('end', (reason) => {
-                                    console.log(`[Player Web API Import] Track ended. Reason: ${reason.reason}`);
-                                    if (reason.reason === 'REPLACED') return;
-                                    const command = client.commands.get('play');
-                                    if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
-                                        command.handleLoadFailed(guildId, client, queue.currentTrack);
-                                    } else if (command && command.playNext) {
-                                        command.playNext(guildId, client);
-                                    }
-                                });
-                                player.on('exception', (exception) => {
-                                    console.error('[Player Web API Import Exception]', exception.exception?.message || exception.exception || exception);
-                                });
-                                player.on('stuck', (stuck) => {
-                                    console.warn('[Player Web API Import Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
-                                    const command = client.commands.get('play');
-                                    if (command && command.playNext) command.playNext(guildId, client);
-                                });
-                                player.on('error', (err) => {
-                                    console.error('[Player Web API Import Error]', err);
-                                    const command = client.commands.get('play');
-                                    if (command && command.playNext) command.playNext(guildId, client);
-                                });
+                                setupPlayerListeners(player, queue, guildId, client);
                             } catch (err) {
                                 console.error('Failed to auto-connect voice channel:', err);
                             }
@@ -941,8 +939,8 @@ function startServer(client) {
         if (!url) return res.status(400).json({ error: 'Missing URL' });
 
         try {
-            const node = client.shoukaku.nodes.values().next().value;
-            if (!node) throw new Error('Aucun nœud Lavalink disponible');
+            const node = getIdealNode(client);
+            if (!node) throw new Error('Aucun nœud Lavalink disponible pour le moment');
 
             const result = await node.rest.resolve(url);
             if (!result || result.loadType === 'empty' || result.loadType === 'error') {
@@ -986,8 +984,8 @@ function startServer(client) {
         if (!url) return res.status(400).json({ error: 'Missing URL' });
 
         try {
-            const node = client.shoukaku.nodes.values().next().value;
-            if (!node) throw new Error('Aucun nœud Lavalink disponible');
+            const node = getIdealNode(client);
+            if (!node) throw new Error('Aucun nœud Lavalink disponible pour le moment');
 
             const result = await node.rest.resolve(url);
             if (!result || result.loadType === 'empty' || result.loadType === 'error') {

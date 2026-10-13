@@ -68,8 +68,8 @@ module.exports = {
             const query = interaction.options.getString('recherche');
             if (!playlists[name]) return interaction.followUp('❌ Cette playlist n\'existe pas.');
 
-            const nodes = Array.from(interaction.client.shoukaku.nodes.values());
-            if (nodes.length === 0) return interaction.followUp('❌ Aucun nœud Lavalink disponible.');
+            const nodes = Array.from(interaction.client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
+            if (nodes.length === 0) return interaction.followUp('❌ Aucun nœud Lavalink disponible pour le moment.');
 
             let trackToPlay = null;
             let finalQuery = query;

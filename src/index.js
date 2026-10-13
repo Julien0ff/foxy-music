@@ -5,16 +5,53 @@ const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord
 const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
+    // Support d'un Lavalink auto-hébergé via variables d'environnement (priorité maximale si défini)
+    ...(process.env.LAVALINK_HOST ? [{
+        name: 'Self-Hosted-Lavalink',
+        url: `${process.env.LAVALINK_HOST}:${process.env.LAVALINK_PORT || 2333}`,
+        auth: process.env.LAVALINK_PASS || 'youshallnotpass',
+        secure: process.env.LAVALINK_SECURE === 'true'
+    }] : []),
     {
-        name: 'Trinium-Lavalink',
+        name: 'Serenetia-SSL',
+        url: 'lavalinkv4.serenetia.com:443',
+        auth: 'https://dsc.gg/ajidevserver',
+        secure: true
+    },
+    {
+        name: 'Serenetia-Combined',
+        url: 'lavalink.serenetia.com:443',
+        auth: 'https://dsc.gg/ajidevserver',
+        secure: true
+    },
+    {
+        name: 'Trinium-v4',
+        url: 'lavalink-v4.triniumhost.com:443',
+        auth: 'free',
+        secure: true
+    },
+    {
+        name: 'Trinium-4333',
         url: 'lavalink.triniumhost.com:4333',
         auth: 'free',
         secure: false
     },
     {
-        name: 'Serenetia-Free',
-        url: 'lavalinkv4.serenetia.com:80',
-        auth: 'https://seretia.link/discord',
+        name: 'Nazha',
+        url: 'lavalink.nazha.online:443',
+        auth: 'nazhafreelava',
+        secure: true
+    },
+    {
+        name: 'Millo',
+        url: 'lava-v4.millohost.my.id:443',
+        auth: 'https://discord.gg/mjS5J2K3ep',
+        secure: true
+    },
+    {
+        name: 'Kasawa',
+        url: 'lava2.kasawa.pro:2334',
+        auth: 'youshallnotpass',
         secure: false
     }
 ];
@@ -35,7 +72,17 @@ const client = new Client({
 
 client.commands = new Collection();
 
-const shoukaku = new Shoukaku(new Connectors.DiscordJS(client), Nodes);
+const shoukaku = new Shoukaku(
+    new Connectors.DiscordJS(client),
+    Nodes,
+    {
+        moveOnDisconnect: true,
+        resume: true,
+        reconnectTries: 5,
+        reconnectInterval: 10,
+        restTimeout: 10000
+    }
+);
 shoukaku.on('error', (name, error) => console.error(`[Lavalink Node ${name}] Error:`, error));
 shoukaku.on('ready', (name) => console.log(`[Lavalink Node ${name}] Connected!`));
 shoukaku.on('close', (name, code, reason) => console.warn(`[Lavalink Node ${name}] Connection closed (Code: ${code}, Reason: ${reason})`));
