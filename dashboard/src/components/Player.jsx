@@ -10,7 +10,8 @@ import {
   MicOff, 
   Search, 
   Loader2,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import { API_URL } from '../config';
 
@@ -43,23 +44,13 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
     ? lyrics.synced.reduce((prev, line, i) => line.time <= currentTimeMs ? i : prev, -1)
     : -1;
 
-  // Progressive Karaoke line fill (sweeps across words like Apple Music / Cider)
-  let activeLineProgress = 0;
-  if (activeIndex >= 0 && lyrics?.synced?.[activeIndex]) {
-    const curTime = lyrics.synced[activeIndex].time;
-    const nextLine = lyrics.synced[activeIndex + 1];
-    const endTime = nextLine ? nextLine.time : (curTime + 4500);
-    const lineDuration = Math.max(500, endTime - curTime);
-    activeLineProgress = Math.min(1, Math.max(0, (currentTimeMs - curTime) / lineDuration));
-  }
-
   // Smooth spring auto-scroll centering active line at ~38% viewport height (golden ratio)
   const scrollToActive = useCallback((smooth = true) => {
     if (!containerRef.current || !activeLineRef.current) return;
     const container = containerRef.current;
     const activeEl = activeLineRef.current;
     const containerHeight = container.clientHeight;
-    const targetScroll = activeEl.offsetTop - (containerHeight * 0.38) + (activeEl.clientHeight / 2);
+    const targetScroll = activeEl.offsetTop - (containerHeight * 0.38);
 
     isAutoScrolling.current = true;
     container.scrollTo({
@@ -142,15 +133,12 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
           const isPast = i < activeIndex;
           const isActive = i === activeIndex;
           const isFuture = i > activeIndex;
-          const dist = activeIndex >= 0 ? Math.abs(i - activeIndex) : 99;
-          const distClass = dist <= 4 ? `dist-${dist}` : 'dist-far';
 
           return (
             <div
               key={i}
               ref={isActive ? activeLineRef : null}
-              className={`lyrics-line ${isActive ? 'lyrics-active' : ''} ${isPast ? 'lyrics-past' : ''} ${isFuture ? 'lyrics-future' : ''} ${distClass}`}
-              style={isActive ? { '--line-fill': `${(activeLineProgress * 100).toFixed(1)}%` } : undefined}
+              className={`lyrics-line ${isActive ? 'lyrics-active' : ''} ${isPast ? 'lyrics-past' : ''} ${isFuture ? 'lyrics-future' : ''}`}
               onClick={() => onSeek && onSeek(line.time)}
               title="Cliquer pour écouter à partir d'ici"
             >
@@ -374,9 +362,9 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   }, [showLyrics, currentTrack, guildId, lyricsTrackUrl]);
 
-  // Notify parent component of lyrics mode toggle (stays active during smooth exit animation)
+  // Notify parent component of lyrics mode toggle (synced in real-time with exit animation)
   useEffect(() => {
-    if (onLyricsToggle) onLyricsToggle(showLyrics || isClosingLyrics);
+    if (onLyricsToggle) onLyricsToggle(showLyrics && !isClosingLyrics);
   }, [showLyrics, isClosingLyrics, onLyricsToggle]);
 
   // Clean up exit timer on unmount
@@ -385,6 +373,17 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
       if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
     };
   }, []);
+
+  // Handle Escape key to close lyrics smoothly
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && (showLyrics || isClosingLyrics)) {
+        if (!isClosingLyrics) handleLyricsToggle();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showLyrics, isClosingLyrics]);
 
   const handlePauseResume = async () => {
     if (!currentTrack) return;
@@ -630,6 +629,16 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
                   <span className="next-title">{tracks[0].title}</span>
                 </div>
               )}
+
+              {/* Explicit Close Button */}
+              <button
+                type="button"
+                onClick={handleLyricsToggle}
+                className="lyrics-close-btn"
+                title="Fermer les paroles (Échap)"
+              >
+                <X size={18} />
+              </button>
             </div>
           </div>
           <LyricsView

@@ -442,22 +442,22 @@
 @keyframes fadeInRight {
   from { 
     opacity: 0; 
-    transform: translateX(36px) scale(0.985); 
+    transform: translateX(40px); 
   }
   to { 
     opacity: 1; 
-    transform: translateX(0) scale(1); 
+    transform: translateX(0); 
   }
 }
 
 @keyframes fadeOutRight {
   from { 
     opacity: 1; 
-    transform: translateX(0) scale(1); 
+    transform: translateX(0); 
   }
   to { 
     opacity: 0; 
-    transform: translateX(36px) scale(0.985); 
+    transform: translateX(40px); 
   }
 }
 
@@ -473,7 +473,6 @@
   height: 100%;
   position: relative;
   z-index: 1;
-  scroll-behavior: smooth;
   /* Immersion fade top & bottom */
   mask-image: linear-gradient(
     to bottom,
@@ -501,18 +500,18 @@
 }
 
 /* ================================================
-   LYRICS LINES — Cider Multi-Depth Kinetic Aesthetics
+   LYRICS LINES — Zero-Reflow Smooth Apple Music / Cider Kinetics
    ================================================ */
 .lyrics-line {
   position: relative;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
-  line-height: 1.42;
-  padding: 7px 12px;
-  margin: 3px 0;
+  line-height: 1.45;
+  padding: 8px 14px;
+  margin: 4px 0;
   border-radius: 12px;
-  color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
   cursor: pointer;
   user-select: none;
   letter-spacing: -0.025em;
@@ -522,10 +521,10 @@
   transform-origin: left center;
   will-change: transform, opacity, filter;
   transition:
-    transform 0.48s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.42s ease,
-    filter 0.42s ease,
-    color 0.3s ease,
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    text-shadow 0.42s cubic-bezier(0.16, 1, 0.3, 1),
     background-color 0.25s ease;
 }
 
@@ -553,79 +552,43 @@
 
 .lyrics-text {
   flex: 1;
-  transition: all 0.35s ease;
 }
 
-/* Multi-depth optical blur & scaling */
-.lyrics-line.dist-1 {
-  opacity: 0.38;
-  filter: blur(0.9px);
-  transform: scale(0.98);
+/* Future lines: gentle ambient softness in distance */
+.lyrics-line.lyrics-future {
+  opacity: 0.20;
+  transform: scale(0.95) translateZ(0);
+  filter: blur(1.2px);
+  text-shadow: none;
 }
 
-.lyrics-line.dist-2 {
-  opacity: 0.24;
-  filter: blur(1.5px);
-  transform: scale(0.96);
+/* Upcoming line right after active: anticipation state */
+.lyrics-line.lyrics-active + .lyrics-line {
+  opacity: 0.44 !important;
+  transform: scale(0.985) translateZ(0) !important;
+  filter: blur(0.4px) !important;
 }
 
-.lyrics-line.dist-3,
-.lyrics-line.dist-4,
-.lyrics-line.dist-far {
-  opacity: 0.14;
-  filter: blur(2.2px);
-  transform: scale(0.94);
+/* Past lines: softly dimmed, subtle optical softness */
+.lyrics-line.lyrics-past {
+  opacity: 0.35;
+  transform: scale(0.965) translateZ(0);
+  filter: blur(0.4px);
+  text-shadow: none;
 }
 
-/* Hover brings any line to focal clarity */
-.lyrics-line:hover {
-  opacity: 0.88 !important;
-  filter: blur(0px) !important;
-  transform: translateX(8px) scale(0.99) !important;
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.035);
-}
-
-/* Active Line (Cider Star Karaoke Sing Highlight) */
+/* Active Line (Cider Star Karaoke Sing Highlight) — Pure radiant glow */
 .lyrics-line.lyrics-active {
-  font-size: 32px;
-  font-weight: 800;
   opacity: 1 !important;
-  filter: blur(0px) !important;
   transform: scale(1.055) translateZ(0) !important;
-  color: #ffffff;
+  filter: blur(0px) !important;
   cursor: default;
-  margin: 12px 0;
+  text-shadow: 0 0 24px rgba(255, 255, 255, 0.5), 0 0 48px rgba(255, 120, 50, 0.3);
   background: transparent !important;
 }
 
 .lyrics-line.lyrics-active .lyrics-seek-hint {
   display: none;
-}
-
-/* Progressive Karaoke Sweep Fill */
-.lyrics-line.lyrics-active .lyrics-text {
-  background: linear-gradient(
-    90deg,
-    #ffffff 0%,
-    #ffffff var(--line-fill, 0%),
-    rgba(255, 255, 255, 0.45) calc(var(--line-fill, 0%) + 5%),
-    rgba(255, 255, 255, 0.22) 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.45))
-          drop-shadow(0 0 38px rgba(255, 120, 50, 0.3));
-  display: inline-block;
-  will-change: background;
-}
-
-.lyrics-line.lyrics-past {
-  color: rgba(255, 255, 255, 0.28);
-}
-
-.lyrics-line.lyrics-future {
-  color: rgba(255, 255, 255, 0.14);
 }
 
 .lyrics-line.lyrics-blank {
@@ -636,6 +599,61 @@
 .lyrics-line.lyrics-blank:hover {
   transform: none;
   background: transparent;
+}
+
+/* Hover brings any line to crystal focus */
+.lyrics-line:hover {
+  opacity: 0.95 !important;
+  filter: blur(0px) !important;
+  transform: translateX(8px) scale(0.99) translateZ(0) !important;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Explicit Close Button in Top Bar */
+.lyrics-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+  backdrop-filter: blur(8px);
+}
+
+.lyrics-close-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+.lyrics-close-btn:active {
+  transform: scale(0.94);
+}
+
+/* Smooth exit transitions for player-main */
+.player-lyrics-closing {
+  pointer-events: none;
+}
+
+.player-lyrics-closing .player-main {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  border-right-color: transparent !important;
+  background: transparent !important;
+}
+
+.player-lyrics-closing .artwork-wrapper {
+  width: 100% !important;
+  max-width: min(100%, 45vh) !important;
 }
 
 /* Floating Resync Pill when user scrolls manually */
@@ -770,9 +788,9 @@
   filter: drop-shadow(0 0 6px var(--primary));
 }
 
-/* Grid adaptation when lyrics mode is active — 2 columns: voices + full player+lyrics */
+/* Grid adaptation when lyrics mode is active — 3 columns (190px 1fr 0px) for smooth CSS grid interpolation */
 .lyrics-active-grid {
-  grid-template-columns: 190px 1fr !important;
+  grid-template-columns: 190px 1fr 0px !important;
 }
 
 

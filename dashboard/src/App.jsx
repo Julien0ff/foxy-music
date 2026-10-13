@@ -478,11 +478,9 @@ function App() {
               </div>
               
               <div className={`center-column ${lyricsMode ? 'lyrics-center' : ''}`}>
-                {!lyricsMode && (
-                  <div className="search-wrapper">
-                    <SearchBar guildId={selectedGuildId} />
-                  </div>
-                )}
+                <div className={`search-wrapper ${lyricsMode ? 'search-hidden' : ''}`}>
+                  <SearchBar guildId={selectedGuildId} />
+                </div>
                 <div className={`player-wrapper ${lyricsMode ? 'lyrics-player-wrapper' : ''}`}>
                   <Player 
                     guildId={selectedGuildId}
@@ -499,18 +497,16 @@ function App() {
                 </div>
               </div>
 
-              {!lyricsMode && (
-                <div className="right-column">
-                  <div className="queue-wrapper">
-                    <QueueList 
-                      tracks={queueState.tracks} 
-                      onRemoveTrack={handleRemoveTrack}
-                      onClearQueue={handleClearQueue}
-                      onShuffleQueue={handleShuffleQueue}
-                    />
-                  </div>
+              <div className={`right-column ${lyricsMode ? 'right-column-hidden' : ''}`}>
+                <div className="queue-wrapper">
+                  <QueueList 
+                    tracks={queueState.tracks} 
+                    onRemoveTrack={handleRemoveTrack}
+                    onClearQueue={handleClearQueue}
+                    onShuffleQueue={handleShuffleQueue}
+                  />
                 </div>
-              )}
+              </div>
             </div>
           ) : (
             <div className="no-server-selected">
