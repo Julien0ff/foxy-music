@@ -1,7 +1,7 @@
 require('dotenv').config();
 const dns = require('node:dns');
 dns.setDefaultResultOrder('ipv4first');
-const { Client, GatewayIntentBits, Collection, ActivityType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActivityType, Events } = require('discord.js');
 const { Shoukaku, Connectors } = require('shoukaku');
 
 const Nodes = [
@@ -12,6 +12,12 @@ const Nodes = [
         auth: process.env.LAVALINK_PASS || 'youshallnotpass',
         secure: process.env.LAVALINK_SECURE === 'true'
     }] : []),
+    {
+        name: 'Nazha',
+        url: 'lavalink.nazha.online:443',
+        auth: 'nazhafreelava',
+        secure: true
+    },
     {
         name: 'Serenetia-SSL',
         url: 'lavalinkv4.serenetia.com:443',
@@ -25,34 +31,16 @@ const Nodes = [
         secure: true
     },
     {
-        name: 'Trinium-v4',
-        url: 'lavalink-v4.triniumhost.com:443',
-        auth: 'free',
-        secure: true
-    },
-    {
-        name: 'Trinium-4333',
-        url: 'lavalink.triniumhost.com:4333',
-        auth: 'free',
+        name: 'Kasawa',
+        url: 'lava2.kasawa.pro:2334',
+        auth: 'youshallnotpass',
         secure: false
-    },
-    {
-        name: 'Nazha',
-        url: 'lavalink.nazha.online:443',
-        auth: 'nazhafreelava',
-        secure: true
     },
     {
         name: 'Millo',
         url: 'lava-v4.millohost.my.id:443',
         auth: 'https://discord.gg/mjS5J2K3ep',
         secure: true
-    },
-    {
-        name: 'Kasawa',
-        url: 'lava2.kasawa.pro:2334',
-        auth: 'youshallnotpass',
-        secure: false
     }
 ];
 const fs = require('fs');
@@ -105,7 +93,7 @@ if (fs.existsSync(commandsPath)) {
     }
 }
 
-client.once('ready', () => {
+client.once(Events.ClientReady, () => {
     console.log(`🦊 Foxy is online! Logged in as ${client.user.tag}`);
 
     // Configuration de la présence du bot

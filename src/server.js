@@ -84,6 +84,11 @@ function startServer(client) {
 
         playerInstance.on('exception', (exception) => {
             console.error('[Player Web API Exception]', exception.exception?.message || exception.exception || exception);
+            const command = clientInstance.commands.get('play');
+            if (command && command.handleLoadFailed && queueInstance.currentTrack && !queueInstance.currentTrack.isFallback) {
+                console.log(`[Player Web API Fallback] Déclenchement automatique du fallback SoundCloud suite à une exception audio...`);
+                command.handleLoadFailed(gId, clientInstance, queueInstance.currentTrack);
+            }
         });
 
         playerInstance.on('stuck', (stuck) => {

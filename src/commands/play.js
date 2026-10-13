@@ -204,19 +204,32 @@ async function handleLoadFailed(guildId, client, failedTrack) {
 
     try {
         const nodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
-        const searchQuery = `ytmsearch:${failedTrack.title} ${failedTrack.artist || ''}`.trim();
+        const scQuery = `scsearch:${failedTrack.title} ${failedTrack.artist || ''}`.trim();
         
         let result = null;
         let resolvedNode = null;
         for (const node of nodes) {
             try {
-                result = await node.rest.resolve(searchQuery);
+                result = await node.rest.resolve(scQuery);
                 if (result && result.loadType === 'search' && result.data && result.data.length > 0) {
                     resolvedNode = node;
                     break;
                 }
             } catch (err) {
-                console.log(`[Fallback Node Error] Node ${node.name} failed resolving fallback:`, err.message);
+                console.log(`[Fallback Node Error] Node ${node.name} failed resolving scsearch:`, err.message);
+            }
+        }
+
+        // Si SoundCloud ne donne rien, tenter ytmsearch
+        if (!result || result.loadType !== 'search' || !result.data || result.data.length === 0) {
+            for (const node of nodes) {
+                try {
+                    result = await node.rest.resolve(`ytmsearch:${failedTrack.title} ${failedTrack.artist || ''}`.trim());
+                    if (result && result.loadType === 'search' && result.data && result.data.length > 0) {
+                        resolvedNode = node;
+                        break;
+                    }
+                } catch (_) {}
             }
         }
 
@@ -388,6 +401,10 @@ module.exports = {
 
                     player.on('exception', (exception) => {
                         console.error('[Player Exception]', exception.exception?.message || exception.exception || exception);
+                        if (queue.currentTrack && !queue.currentTrack.isFallback) {
+                            console.log(`[Player Exception Fallback] Déclenchement automatique du fallback SoundCloud suite à une exception audio...`);
+                            handleLoadFailed(interaction.guild.id, interaction.client, queue.currentTrack);
+                        }
                     });
 
                     player.on('stuck', (stuck) => {
