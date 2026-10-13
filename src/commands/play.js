@@ -418,6 +418,14 @@ module.exports = {
                     });
 
                     player.on('update', async (state) => {
+                        if (state && typeof state.position === 'number' && global.io) {
+                            global.io.to(`queue_${interaction.guild.id}`).emit('player_position', {
+                                position: state.position,
+                                isPlaying: !player.paused,
+                                timestamp: Date.now()
+                            });
+                        }
+
                         const queue = getQueue(interaction.guild.id);
                         if (!queue || queue.tracks.length === 0 || queue.prefetchedNext) return;
 

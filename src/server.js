@@ -103,6 +103,16 @@ function startServer(client) {
             if (command && command.playNext) command.playNext(gId, clientInstance);
         });
 
+        playerInstance.on('update', (state) => {
+            if (state && typeof state.position === 'number' && global.io) {
+                global.io.to(`queue_${gId}`).emit('player_position', {
+                    position: state.position,
+                    isPlaying: !playerInstance.paused,
+                    timestamp: Date.now()
+                });
+            }
+        });
+
         playerInstance.on('closed', (reason) => {
             console.warn(`[Player Web API Closed] ${reason?.reason || 'Connection closed'}`);
             if (queueInstance.player === playerInstance) queueInstance.player = null;
@@ -712,7 +722,11 @@ function startServer(client) {
         if (!queue || !queue.currentTrack) {
             return res.status(404).json({ error: 'No track playing' });
         }
-        const lyrics = await fetchLyrics(queue.currentTrack.title);
+        const lyrics = await fetchLyrics(
+            queue.currentTrack.title,
+            queue.currentTrack.author || queue.currentTrack.artist || '',
+            queue.currentTrack.length || queue.currentTrack.duration || 0
+        );
         if (!lyrics) {
             return res.status(404).json({ error: 'Lyrics not found' });
         }

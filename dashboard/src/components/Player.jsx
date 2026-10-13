@@ -3,13 +3,14 @@ import {
   Play, 
   Pause, 
   SkipForward, 
-  SkipBack,
+  SkipBack, 
   Repeat, 
   Music, 
   Mic, 
   MicOff, 
-  Search,
-  Loader2 
+  Search, 
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { API_URL } from '../config';
 
@@ -29,31 +30,80 @@ function formatTime(ms) {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
-// Lyrics display component (Apple Music style)
-function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
+// Lyrics display component (Cider / Apple Music Sing visual aesthetics & kinetics)
+function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   const containerRef = useRef(null);
   const activeLineRef = useRef(null);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const isAutoScrolling = useRef(false);
+  const userScrollTimeoutRef = useRef(null);
 
-  // Find the index of the currently active lyric line safely
+  // Find the index of currently active lyric line
   const activeIndex = (lyrics && lyrics.synced && lyrics.synced.length > 0)
     ? lyrics.synced.reduce((prev, line, i) => line.time <= currentTimeMs ? i : prev, -1)
     : -1;
 
-  // Smooth auto-scroll to keep the active line centered
+  // Progressive Karaoke line fill (sweeps across words like Apple Music / Cider)
+  let activeLineProgress = 0;
+  if (activeIndex >= 0 && lyrics?.synced?.[activeIndex]) {
+    const curTime = lyrics.synced[activeIndex].time;
+    const nextLine = lyrics.synced[activeIndex + 1];
+    const endTime = nextLine ? nextLine.time : (curTime + 4500);
+    const lineDuration = Math.max(500, endTime - curTime);
+    activeLineProgress = Math.min(1, Math.max(0, (currentTimeMs - curTime) / lineDuration));
+  }
+
+  // Smooth spring auto-scroll centering active line at ~38% viewport height (golden ratio)
+  const scrollToActive = useCallback((smooth = true) => {
+    if (!containerRef.current || !activeLineRef.current) return;
+    const container = containerRef.current;
+    const activeEl = activeLineRef.current;
+    const containerHeight = container.clientHeight;
+    const targetScroll = activeEl.offsetTop - (containerHeight * 0.38) + (activeEl.clientHeight / 2);
+
+    isAutoScrolling.current = true;
+    container.scrollTo({
+      top: Math.max(0, targetScroll),
+      behavior: smooth ? 'smooth' : 'auto',
+    });
+    setTimeout(() => {
+      isAutoScrolling.current = false;
+    }, 450);
+  }, []);
+
+  // When activeIndex changes, center smoothly if user isn't exploring lyrics
   useEffect(() => {
-    if (activeLineRef.current && containerRef.current) {
-      activeLineRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
+    if (!isUserScrolling && activeIndex >= 0) {
+      scrollToActive(true);
     }
-  }, [activeIndex]);
+  }, [activeIndex, isUserScrolling, scrollToActive]);
+
+  // Handle user manual scroll: temporarily detach auto-sync and show floating resume button
+  const handleScroll = () => {
+    if (isAutoScrolling.current) return;
+    setIsUserScrolling(true);
+    if (userScrollTimeoutRef.current) clearTimeout(userScrollTimeoutRef.current);
+    userScrollTimeoutRef.current = setTimeout(() => {
+      setIsUserScrolling(false);
+    }, 4500);
+  };
+
+  const handleManualResync = () => {
+    setIsUserScrolling(false);
+    if (userScrollTimeoutRef.current) clearTimeout(userScrollTimeoutRef.current);
+    scrollToActive(true);
+  };
 
   if (isLoading) {
     return (
       <div className="lyrics-container lyrics-loading">
+        <div className="cider-aura-wrapper" aria-hidden="true">
+          <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+          <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+          <div className="cider-aura-blob blob-3" />
+        </div>
         <div className="lyrics-spinner" />
-        <p>Recherche des paroles...</p>
+        <p>Recherche des paroles synchronisées...</p>
       </div>
     );
   }
@@ -63,54 +113,98 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
   if (hasNoLyrics) {
     return (
       <div className="lyrics-container lyrics-empty">
-        <Mic size={40} opacity={0.3} />
-        <p>Aucune parole trouvée pour cette musique.</p>
+        <div className="cider-aura-wrapper" aria-hidden="true">
+          <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+          <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+          <div className="cider-aura-blob blob-3" />
+        </div>
+        <Mic size={48} opacity={0.25} />
+        <p>Aucune parole disponible pour ce titre.</p>
       </div>
     );
   }
 
-  // Synced lyrics view
+  // Synced lyrics view (Cider dynamic kinetic blur effect)
   if (lyrics.synced && lyrics.synced.length > 0) {
     return (
-      <div className="lyrics-container" ref={containerRef}>
+      <div className="lyrics-container" ref={containerRef} onScroll={handleScroll}>
+        {/* Dynamic Cider Fluid Aurora Backdrop */}
+        <div className="cider-aura-wrapper" aria-hidden="true">
+          <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+          <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+          <div className="cider-aura-blob blob-3" />
+          <div className="cider-aura-glass" />
+        </div>
+
         <div className="lyrics-padding-top" />
+
         {lyrics.synced.map((line, i) => {
           const isPast = i < activeIndex;
           const isActive = i === activeIndex;
           const isFuture = i > activeIndex;
+          const dist = activeIndex >= 0 ? Math.abs(i - activeIndex) : 99;
+          const distClass = dist <= 4 ? `dist-${dist}` : 'dist-far';
+
           return (
             <div
               key={i}
               ref={isActive ? activeLineRef : null}
-              className={`lyrics-line ${isActive ? 'lyrics-active' : ''} ${isPast ? 'lyrics-past' : ''} ${isFuture ? 'lyrics-future' : ''}`}
+              className={`lyrics-line ${isActive ? 'lyrics-active' : ''} ${isPast ? 'lyrics-past' : ''} ${isFuture ? 'lyrics-future' : ''} ${distClass}`}
+              style={isActive ? { '--line-fill': `${(activeLineProgress * 100).toFixed(1)}%` } : undefined}
               onClick={() => onSeek && onSeek(line.time)}
+              title="Cliquer pour écouter à partir d'ici"
             >
-              {line.text}
+              <span className="lyrics-seek-hint">{formatTime(line.time)}</span>
+              <span className="lyrics-text">{line.text}</span>
             </div>
           );
         })}
+
         <div className="lyrics-padding-bottom" />
+
+        {/* Floating Resync Pill button when manually scrolled */}
+        {isUserScrolling && activeIndex >= 0 && (
+          <button
+            className="cider-resync-pill"
+            onClick={handleManualResync}
+            title="Revenir et synchroniser les paroles"
+          >
+            <Sparkles size={14} className="resync-icon" />
+            <span>Reprendre la synchro</span>
+          </button>
+        )}
       </div>
     );
   }
 
-  // Plain lyrics fallback
+  // Plain lyrics fallback (Atmospheric frosted glass layout)
   return (
     <div className="lyrics-container lyrics-plain">
+      <div className="cider-aura-wrapper" aria-hidden="true">
+        <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+        <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
+        <div className="cider-aura-blob blob-3" />
+        <div className="cider-aura-glass" />
+      </div>
+      <div className="lyrics-padding-top" style={{ height: '14vh' }} />
+      <div className="lyrics-plain-badge">Paroles textuelles (non synchronisées)</div>
       {(lyrics.plain || '').split('\n').map((line, i) => (
         <div key={i} className={`lyrics-line ${!line.trim() ? 'lyrics-blank' : ''}`}>
           {line || '\u00A0'}
         </div>
       ))}
+      <div className="lyrics-padding-bottom" style={{ height: '14vh' }} />
     </div>
   );
 }
 
 export default function Player({ guildId, currentTrack, isPlaying, serverPosition, duration, volume, loop, setQueueState, onLyricsToggle, tracks }) {
-  const [localProgress, setLocalProgress] = useState(0);
-  const [lastSyncPos, setLastSyncPos] = useState(serverPosition);
+  const [localProgress, setLocalProgress] = useState(serverPosition || 0);
   const [lastTrackUrl, setLastTrackUrl] = useState(currentTrack?.url);
   const [animateCover, setAnimateCover] = useState(false);
+
+  // Sync Offset (Fine-tuning in milliseconds)
+  const [syncOffset, setSyncOffset] = useState(0);
 
   // Lyrics state
   const [showLyrics, setShowLyrics] = useState(false);
@@ -118,13 +212,19 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsTrackUrl, setLyricsTrackUrl] = useState(null);
 
+  // High precision client clock references (prevents setInterval drift & server update glitches)
+  const clockRef = useRef({
+    basePos: serverPosition || 0,
+    baseTimestamp: performance.now(),
+    isPlaying: isPlaying
+  });
+
   // Expandable Search in Lyrics state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchInputRef = useRef(null);
   const volumeDebounceRef = useRef(null);
-
   const handleSearchSubmit = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -169,39 +269,65 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   };
 
-  // Derive state from props during render (avoids cascading renders from useEffect)
-  if (serverPosition !== lastSyncPos) {
-    setLastSyncPos(serverPosition);
-    setLocalProgress(serverPosition || 0);
-  }
-
-  // Réinitialiser la barre de progression instantanément lors d'un changement de musique
+  // Track change detection
   if (currentTrack?.url !== lastTrackUrl) {
     setLastTrackUrl(currentTrack?.url);
-    setLocalProgress(serverPosition || 0);
     setAnimateCover(true);
-    // Invalide les paroles chargées si la piste change
+    setSyncOffset(0);
+    clockRef.current.basePos = serverPosition || 0;
+    clockRef.current.baseTimestamp = performance.now();
+    setLocalProgress(serverPosition || 0);
     if (lyricsTrackUrl !== currentTrack?.url) {
       setLyrics(null);
       setLyricsTrackUrl(null);
     }
   }
 
-  // Local timer to keep the progress bar smooth without polling the server every second
+  // Smooth calibration with serverPosition ticks without jerky teleportation
   useEffect(() => {
-    let interval;
-    if (isPlaying && currentTrack) {
-      interval = setInterval(() => {
-        setLocalProgress(p => {
-            const next = p + 50;
-            return duration > 0 ? Math.min(next, duration) : next;
-        });
-      }, 50);
+    const isCurrentlyPlaying = isPlaying;
+    clockRef.current.isPlaying = isCurrentlyPlaying;
+    const now = performance.now();
+    const elapsed = isCurrentlyPlaying ? (now - clockRef.current.baseTimestamp) : 0;
+    const estimated = clockRef.current.basePos + elapsed;
+    const delta = Math.abs(estimated - (serverPosition || 0));
+
+    if (delta > 1500) {
+      // Large jump (seek or initial start) -> immediate snap
+      clockRef.current.basePos = serverPosition || 0;
+      clockRef.current.baseTimestamp = now;
+      setLocalProgress(serverPosition || 0);
+    } else {
+      // Micro-jitter smoothing (< 1.5s): softly blend basePos to avoid visual jumps
+      clockRef.current.basePos = estimated * 0.7 + (serverPosition || 0) * 0.3;
+      clockRef.current.baseTimestamp = now;
     }
-    return () => clearInterval(interval);
+  }, [serverPosition, isPlaying]);
+
+  // Ultra-fluid 60fps clock using requestAnimationFrame (zero drift)
+  useEffect(() => {
+    if (!isPlaying || !currentTrack) return;
+
+    let animId;
+    let lastTickTime = performance.now();
+
+    const tick = (now) => {
+      // Update at smooth ~35fps rate to balance ultra-fluid animation with CPU efficiency
+      if (now - lastTickTime >= 28) {
+        lastTickTime = now;
+        const elapsed = now - clockRef.current.baseTimestamp;
+        const current = clockRef.current.basePos + elapsed;
+        const clamped = duration > 0 ? Math.min(current, duration) : Math.max(0, current);
+        setLocalProgress(clamped);
+      }
+      animId = requestAnimationFrame(tick);
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
   }, [isPlaying, currentTrack, duration]);
 
-  // Réinitialiser l'animation de transition de couverture
+  // Reset cover transition animation
   useEffect(() => {
     if (animateCover) {
       const timer = setTimeout(() => setAnimateCover(false), 600);
@@ -209,12 +335,11 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   }, [animateCover]);
 
-  // Charger les paroles quand on active le mode paroles
+  // Load lyrics when lyrics mode is opened
   useEffect(() => {
     if (showLyrics && currentTrack && lyricsTrackUrl !== currentTrack.url) {
       let active = true;
 
-      // Planifier les mises à jour d'état de manière asynchrone pour éviter les rendus en cascade
       Promise.resolve().then(() => {
         if (active) {
           setLyricsLoading(true);
@@ -247,7 +372,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   }, [showLyrics, currentTrack, guildId, lyricsTrackUrl]);
 
-  // Notifier App.jsx du changement de mode paroles
+  // Notify parent component of lyrics mode toggle
   useEffect(() => {
     if (onLyricsToggle) onLyricsToggle(showLyrics);
   }, [showLyrics, onLyricsToggle]);
@@ -425,6 +550,41 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
             )}
 
             <div className="lyrics-top-controls">
+              {/* Lyrics Offset Fine-tuning Widget */}
+              {lyrics?.synced?.length > 0 && (
+                <div className="lyrics-offset-bar" title="Ajuster la synchronisation des paroles en temps réel">
+                  <button
+                    type="button"
+                    className="offset-btn"
+                    onClick={() => setSyncOffset(o => o - 250)}
+                    title="Reculer les paroles (-0.25s)"
+                  >
+                    -0.25s
+                  </button>
+                  <span className={`offset-label ${syncOffset !== 0 ? 'offset-active' : ''}`}>
+                    {syncOffset === 0 ? 'Synchro ✓' : `${syncOffset > 0 ? '+' : ''}${(syncOffset / 1000).toFixed(2)}s`}
+                  </span>
+                  <button
+                    type="button"
+                    className="offset-btn"
+                    onClick={() => setSyncOffset(o => o + 250)}
+                    title="Avancer les paroles (+0.25s)"
+                  >
+                    +0.25s
+                  </button>
+                  {syncOffset !== 0 && (
+                    <button
+                      type="button"
+                      className="offset-btn offset-reset"
+                      onClick={() => setSyncOffset(0)}
+                      title="Réinitialiser le décalage (0s)"
+                    >
+                      ↺
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className={`lyrics-search-wrapper ${searchExpanded ? 'expanded' : ''}`}>
                 <form onSubmit={handleSearchSubmit} className="lyrics-search-form">
                   <input
@@ -453,9 +613,10 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
           </div>
           <LyricsView
             lyrics={lyrics}
-            currentTimeMs={localProgress}
+            currentTimeMs={localProgress + syncOffset}
             onSeek={handleSeek}
             isLoading={lyricsLoading}
+            artworkUrl={thumbnail}
           />
         </div>
       )}

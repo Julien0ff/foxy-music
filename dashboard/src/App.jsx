@@ -291,6 +291,16 @@ function App() {
       });
     });
 
+    socket.on('player_position', (data) => {
+      if (data && typeof data.position === 'number') {
+        setQueueState(prev => ({
+          ...prev,
+          position: data.position,
+          isPlaying: typeof data.isPlaying === 'boolean' ? data.isPlaying : prev.isPlaying
+        }));
+      }
+    });
+
     socket.on('voice_update', (data) => {
       setVoiceData(data);
     });

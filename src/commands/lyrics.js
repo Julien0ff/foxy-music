@@ -26,7 +26,10 @@ module.exports = {
             searchTitle = queue.currentTrack.title;
         }
 
-        const lyrics = await fetchLyrics(searchTitle);
+        const queue = global.queues ? global.queues.get(interaction.guild.id) : null;
+        const artist = (!interaction.options.getString('chanson') && queue?.currentTrack) ? (queue.currentTrack.author || queue.currentTrack.artist || '') : '';
+        const duration = (!interaction.options.getString('chanson') && queue?.currentTrack) ? (queue.currentTrack.length || queue.currentTrack.duration || 0) : 0;
+        const lyrics = await fetchLyrics(searchTitle, artist, duration);
 
         if (!lyrics || (!lyrics.plain && lyrics.synced.length === 0)) {
             return interaction.editReply({
