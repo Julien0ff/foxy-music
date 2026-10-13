@@ -125,7 +125,13 @@
   background: rgba(8, 8, 14, 0.55);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
-  animation: fadeInRight 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInRight 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.lyrics-panel.lyrics-panel-closing {
+  animation: fadeOutRight 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
 }
 
 /* ================================================
@@ -434,8 +440,25 @@
 }
 
 @keyframes fadeInRight {
-  from { opacity: 0; transform: translateX(24px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { 
+    opacity: 0; 
+    transform: translateX(36px) scale(0.985); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0) scale(1); 
+  }
+}
+
+@keyframes fadeOutRight {
+  from { 
+    opacity: 1; 
+    transform: translateX(0) scale(1); 
+  }
+  to { 
+    opacity: 0; 
+    transform: translateX(36px) scale(0.985); 
+  }
 }
 
 /* ================================================

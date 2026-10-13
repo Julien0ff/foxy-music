@@ -208,6 +208,8 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
 
   // Lyrics state
   const [showLyrics, setShowLyrics] = useState(false);
+  const [isClosingLyrics, setIsClosingLyrics] = useState(false);
+  const closingTimerRef = useRef(null);
   const [lyrics, setLyrics] = useState(null);
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsTrackUrl, setLyricsTrackUrl] = useState(null);
@@ -372,10 +374,17 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   }, [showLyrics, currentTrack, guildId, lyricsTrackUrl]);
 
-  // Notify parent component of lyrics mode toggle
+  // Notify parent component of lyrics mode toggle (stays active during smooth exit animation)
   useEffect(() => {
-    if (onLyricsToggle) onLyricsToggle(showLyrics);
-  }, [showLyrics, onLyricsToggle]);
+    if (onLyricsToggle) onLyricsToggle(showLyrics || isClosingLyrics);
+  }, [showLyrics, isClosingLyrics, onLyricsToggle]);
+
+  // Clean up exit timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+    };
+  }, []);
 
   const handlePauseResume = async () => {
     if (!currentTrack) return;
@@ -448,14 +457,26 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   }, [guildId]);
 
   const handleLyricsToggle = () => {
-    setShowLyrics(prev => !prev);
+    if (showLyrics && !isClosingLyrics) {
+      setIsClosingLyrics(true);
+      if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+      closingTimerRef.current = setTimeout(() => {
+        setShowLyrics(false);
+        setIsClosingLyrics(false);
+      }, 380);
+    } else if (!showLyrics) {
+      if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
+      setIsClosingLyrics(false);
+      setShowLyrics(true);
+    }
   };
 
   const thumbnail = currentTrack?.artworkUrl || getYoutubeThumbnail(currentTrack?.url);
   const progressPercent = duration > 0 ? Math.min(100, (localProgress / duration) * 100) : 0;
+  const isLyricsVisible = showLyrics || isClosingLyrics;
 
   return (
-    <div className={`player-container ${showLyrics ? 'player-lyrics-mode' : ''}`}>
+    <div className={`player-container ${isLyricsVisible ? 'player-lyrics-mode' : ''} ${isClosingLyrics ? 'player-lyrics-closing' : ''}`}>
       {/* Left side: Player */}
       <div className="player-main">
         <div className="artwork-wrapper">
@@ -511,12 +532,12 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
           </button>
 
           <button
-            className={`control-btn lyrics-btn ${showLyrics ? 'active-lyrics' : ''}`}
+            className={`control-btn lyrics-btn ${showLyrics && !isClosingLyrics ? 'active-lyrics' : ''}`}
             onClick={handleLyricsToggle}
             disabled={!currentTrack}
             title={showLyrics ? "Masquer les paroles" : "Afficher les paroles"}
           >
-            {showLyrics ? <MicOff size={22} /> : <Mic size={22} />}
+            {showLyrics && !isClosingLyrics ? <MicOff size={22} /> : <Mic size={22} />}
           </button>
         </div>
 
@@ -537,8 +558,8 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
       </div>
 
       {/* Right side: Lyrics Panel */}
-      {showLyrics && (
-        <div className="lyrics-panel">
+      {isLyricsVisible && (
+        <div className={`lyrics-panel ${isClosingLyrics ? 'lyrics-panel-closing' : ''}`}>
           <div className="lyrics-top-bar">
             {lyrics ? (
               <div className="lyrics-panel-header">
