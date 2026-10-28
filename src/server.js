@@ -244,10 +244,13 @@ function startServer(client) {
             if (command && command.playNext) command.playNext(gId, clientInstance);
         });
 
-        playerInstance.on('update', (state) => {
-            if (state && typeof state.position === 'number' && global.io) {
+        playerInstance.on('update', (packet) => {
+            const rawPos = (packet?.state && typeof packet.state.position === 'number')
+                ? packet.state.position
+                : (typeof playerInstance.position === 'number' ? playerInstance.position : 0);
+            if (global.io) {
                 global.io.to(`queue_${gId}`).emit('player_position', {
-                    position: state.position,
+                    position: rawPos,
                     isPlaying: !playerInstance.paused,
                     timestamp: Date.now()
                 });
@@ -1081,6 +1084,14 @@ function startServer(client) {
         }
         try {
             await queue.player.seekTo(position);
+            queue.player.position = position;
+            if (global.io) {
+                global.io.to(`queue_${req.params.id}`).emit('player_position', {
+                    position,
+                    isPlaying: !queue.player.paused,
+                    timestamp: Date.now()
+                });
+            }
             return res.json({ success: true, position });
         } catch (e) {
             console.error('[Seek Error]', e);

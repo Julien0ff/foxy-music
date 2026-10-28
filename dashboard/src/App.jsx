@@ -296,6 +296,7 @@ function App() {
         setQueueState(prev => ({
           ...prev,
           position: data.position,
+          positionTimestamp: data.timestamp || Date.now(),
           isPlaying: typeof data.isPlaying === 'boolean' ? data.isPlaying : prev.isPlaying
         }));
       }
@@ -487,6 +488,7 @@ function App() {
                     currentTrack={queueState.currentTrack} 
                     isPlaying={queueState.isPlaying}
                     serverPosition={queueState.position}
+                    positionTimestamp={queueState.positionTimestamp}
                     duration={queueState.duration}
                     volume={queueState.volume}
                     loop={queueState.loop}

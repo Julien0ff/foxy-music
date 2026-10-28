@@ -107,10 +107,13 @@ module.exports = {
                         playNext(interaction.guild.id, interaction.client);
                     });
 
-                    player.on('update', async (state) => {
-                        if (state && typeof state.position === 'number' && global.io) {
+                    player.on('update', async (packet) => {
+                        const rawPos = (packet?.state && typeof packet.state.position === 'number')
+                            ? packet.state.position
+                            : (typeof player.position === 'number' ? player.position : 0);
+                        if (global.io) {
                             global.io.to(`queue_${interaction.guild.id}`).emit('player_position', {
-                                position: state.position,
+                                position: rawPos,
                                 isPlaying: !player.paused,
                                 timestamp: Date.now()
                             });

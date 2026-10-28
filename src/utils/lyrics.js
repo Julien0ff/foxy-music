@@ -40,20 +40,53 @@ function extractArtistAndTitle(rawTitle) {
 function parseLrc(lrcText) {
     if (!lrcText) return [];
     const lines = [];
-    const lineRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
+    let globalOffset = 0;
 
-    for (const rawLine of lrcText.split('\n')) {
-        const match = rawLine.match(lineRegex);
-        if (!match) continue;
-        const minutes = parseInt(match[1], 10);
-        const seconds = parseInt(match[2], 10);
-        const centiseconds = parseInt(match[3].padEnd(3, '0'), 10); // Normalise 2 ou 3 chiffres en ms
-        const time = (minutes * 60 + seconds) * 1000 + centiseconds;
-        const text = match[4].trim();
-        if (text) {
-            lines.push({ time, text });
+    // Check for [offset:+/-ms] tag
+    const offsetMatch = lrcText.match(/\[offset:\s*([+-]?\d+)\]/i);
+    if (offsetMatch) {
+        globalOffset = parseInt(offsetMatch[1], 10) || 0;
+    }
+
+    const timestampRegex = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+
+    for (const rawLine of lrcText.split(/\r?\n/)) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) continue;
+
+        // Skip metadata tags like [ti:], [ar:], [al:], [by:], [offset:], [length:], etc.
+        if (/^\[(ti|ar|al|by|offset|length|re|ve):/i.test(trimmed)) {
+            continue;
+        }
+
+        const timestamps = [];
+        let match;
+        // Collect all timestamps on this line (supports repeated lines like [00:10.50][00:20.50]Chorus)
+        while ((match = timestampRegex.exec(trimmed)) !== null) {
+            const minutes = parseInt(match[1], 10);
+            const seconds = parseInt(match[2], 10);
+            let ms = 0;
+            if (match[3]) {
+                if (match[3].length === 1) ms = parseInt(match[3], 10) * 100;
+                else if (match[3].length === 2) ms = parseInt(match[3], 10) * 10;
+                else ms = parseInt(match[3].slice(0, 3), 10);
+            }
+            const time = (minutes * 60 + seconds) * 1000 + ms + globalOffset;
+            timestamps.push(time);
+        }
+        timestampRegex.lastIndex = 0;
+
+        const text = trimmed.replace(/\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]/g, '').trim();
+
+        if (text && timestamps.length > 0) {
+            for (const t of timestamps) {
+                if (t >= 0) {
+                    lines.push({ time: t, text });
+                }
+            }
         }
     }
+
     return lines.sort((a, b) => a.time - b.time);
 }
 
@@ -119,11 +152,18 @@ async function fetchLyrics(trackTitle, artistName = '', durationMs = 0) {
             if (searchRes.ok) {
                 const results = await searchRes.json();
                 if (results && results.length > 0) {
-                    // Privilégier les résultats avec paroles synchronisées et correspondant au titre/artiste
-                    best = results.find(r => r.syncedLyrics && r.trackName.toLowerCase().includes(finalTrack.toLowerCase())) 
-                        || results.find(r => r.syncedLyrics)
-                        || results.find(r => r.plainLyrics) 
-                        || results[0];
+                    const targetSec = durationMs > 0 ? Math.round(durationMs / 1000) : 0;
+                    const syncedResults = results.filter(r => !!r.syncedLyrics);
+
+                    if (syncedResults.length > 0) {
+                        if (targetSec > 0) {
+                            syncedResults.sort((a, b) => Math.abs((a.duration || 0) - targetSec) - Math.abs((b.duration || 0) - targetSec));
+                        }
+                        best = syncedResults.find(r => r.trackName && r.trackName.toLowerCase().includes(finalTrack.toLowerCase()))
+                            || syncedResults[0];
+                    } else {
+                        best = results.find(r => r.plainLyrics) || results[0];
+                    }
                 }
             }
         }

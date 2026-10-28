@@ -31,20 +31,74 @@ function formatTime(ms) {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
+// Cider Instrumental Break Component (glowing 3-dot pulse animation)
+function CiderInstrumentalBreak({ isAnticipating, label, onClick, isIntro }) {
+  return (
+    <div
+      className={`cider-instrumental-break ${isIntro ? 'is-intro' : 'is-interlude'} ${isAnticipating ? 'anticipating' : ''}`}
+      onClick={onClick}
+      title={onClick ? "Cliquer pour passer au chant" : undefined}
+    >
+      <div className={`cider-instrumental-pill ${isAnticipating ? 'anticipating' : ''}`}>
+        <span className="cider-dot dot-1" />
+        <span className="cider-dot dot-2" />
+        <span className="cider-dot dot-3" />
+      </div>
+      <div className="cider-instrumental-label">
+        <span className="label-pulse" />
+        <span>{isAnticipating ? 'Ça commence...' : (label || 'Passage instrumental')}</span>
+      </div>
+    </div>
+  );
+}
+
 // Lyrics display component (Cider / Apple Music Sing visual aesthetics & kinetics)
 function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   const containerRef = useRef(null);
   const activeLineRef = useRef(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
-  const isAutoScrolling = useRef(false);
   const userScrollTimeoutRef = useRef(null);
 
-  // Find the index of currently active lyric line
-  const activeIndex = (lyrics && lyrics.synced && lyrics.synced.length > 0)
-    ? lyrics.synced.reduce((prev, line, i) => line.time <= currentTimeMs ? i : prev, -1)
-    : -1;
+  // 1. Check intro instrumental (before line 0 starts)
+  const firstLineTime = lyrics?.synced?.[0]?.time ?? 0;
+  const isIntro = Boolean(lyrics?.synced?.length > 0 && currentTimeMs < firstLineTime);
+  const introRemaining = Math.max(0, firstLineTime - currentTimeMs);
+  const isIntroAnticipating = isIntro && introRemaining <= 2500;
 
-  // Smooth spring auto-scroll centering active line at ~38% viewport height (golden ratio)
+  // 2. Identify active line
+  let activeIndex = -1;
+  if (!isIntro && lyrics?.synced?.length > 0) {
+    for (let i = 0; i < lyrics.synced.length; i++) {
+      if (lyrics.synced[i].time <= currentTimeMs) {
+        activeIndex = i;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // 3. Instrumental Interlude detection (gap between verses >= 6500ms)
+  let isInterlude = false;
+  let interludeNextIndex = -1;
+  let isInterludeAnticipating = false;
+
+  if (activeIndex >= 0 && activeIndex < lyrics.synced.length - 1) {
+    const curTime = lyrics.synced[activeIndex].time;
+    const nextTime = lyrics.synced[activeIndex + 1].time;
+    const gap = nextTime - curTime;
+
+    if (gap >= 6500) {
+      const vocalDuration = Math.min(4500, Math.max(2800, gap - 2800));
+      const interludeStart = curTime + vocalDuration;
+      if (currentTimeMs >= interludeStart && currentTimeMs < nextTime) {
+        isInterlude = true;
+        interludeNextIndex = activeIndex + 1;
+        isInterludeAnticipating = (nextTime - currentTimeMs) <= 2500;
+      }
+    }
+  }
+
+  // Smooth centering active line / instrumental break at ~38% viewport height (golden ratio)
   const scrollToActive = useCallback((smooth = true) => {
     if (!containerRef.current || !activeLineRef.current) return;
     const container = containerRef.current;
@@ -52,26 +106,21 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
     const containerHeight = container.clientHeight;
     const targetScroll = activeEl.offsetTop - (containerHeight * 0.38);
 
-    isAutoScrolling.current = true;
     container.scrollTo({
       top: Math.max(0, targetScroll),
       behavior: smooth ? 'smooth' : 'auto',
     });
-    setTimeout(() => {
-      isAutoScrolling.current = false;
-    }, 450);
   }, []);
 
-  // When activeIndex changes, center smoothly if user isn't exploring lyrics
+  // When active index, intro state, or interlude changes, smoothly center
   useEffect(() => {
-    if (!isUserScrolling && activeIndex >= 0) {
+    if (!isUserScrolling) {
       scrollToActive(true);
     }
-  }, [activeIndex, isUserScrolling, scrollToActive]);
+  }, [activeIndex, isIntro, isInterlude, isUserScrolling, scrollToActive]);
 
-  // Handle user manual scroll: temporarily detach auto-sync and show floating resume button
-  const handleScroll = () => {
-    if (isAutoScrolling.current) return;
+  // Only detach auto-sync when the user physically touches or wheels the list
+  const handleUserInteraction = () => {
     setIsUserScrolling(true);
     if (userScrollTimeoutRef.current) clearTimeout(userScrollTimeoutRef.current);
     userScrollTimeoutRef.current = setTimeout(() => {
@@ -118,7 +167,12 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   // Synced lyrics view (Cider dynamic kinetic blur effect)
   if (lyrics.synced && lyrics.synced.length > 0) {
     return (
-      <div className="lyrics-container" ref={containerRef} onScroll={handleScroll}>
+      <div
+        className="lyrics-container"
+        ref={containerRef}
+        onWheel={handleUserInteraction}
+        onTouchMove={handleUserInteraction}
+      >
         {/* Dynamic Cider Fluid Aurora Backdrop */}
         <div className="cider-aura-wrapper" aria-hidden="true">
           <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
@@ -129,21 +183,73 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
 
         <div className="lyrics-padding-top" />
 
+        {/* Intro Instrumental Block */}
+        {isIntro && (
+          <div ref={activeLineRef} className="cider-instrumental-wrapper">
+            <CiderInstrumentalBreak
+              isIntro={true}
+              isAnticipating={isIntroAnticipating}
+              label="Introduction instrumentale"
+              onClick={() => onSeek && onSeek(Math.max(0, firstLineTime - 1200))}
+            />
+          </div>
+        )}
+
         {lyrics.synced.map((line, i) => {
-          const isPast = i < activeIndex;
-          const isActive = i === activeIndex;
-          const isFuture = i > activeIndex;
+          let lineClass = 'lyrics-line';
+          if (isIntro) {
+            if (i === 0) {
+              lineClass += isIntroAnticipating ? ' lyrics-intro-anticipate' : ' lyrics-intro-first';
+            } else {
+              lineClass += ' lyrics-intro-future';
+            }
+          } else if (isInterlude) {
+            if (i <= activeIndex) {
+              lineClass += ' lyrics-past';
+            } else if (i === interludeNextIndex) {
+              lineClass += isInterludeAnticipating ? ' lyrics-next-anticipate' : ' lyrics-future lyrics-interlude-next';
+            } else {
+              lineClass += ' lyrics-future';
+            }
+          } else {
+            if (i === activeIndex) {
+              lineClass += ' lyrics-active';
+            } else if (i === activeIndex + 1) {
+              lineClass += ' lyrics-next';
+            } else if (i > activeIndex + 1) {
+              lineClass += ' lyrics-future';
+            } else if (i === activeIndex - 1) {
+              lineClass += ' lyrics-prev';
+            } else {
+              lineClass += ' lyrics-past';
+            }
+          }
+
+          const isLineActiveTarget = !isIntro && !isInterlude && (i === activeIndex);
+          const showInterludeAfterThis = isInterlude && (i === activeIndex);
 
           return (
-            <div
-              key={i}
-              ref={isActive ? activeLineRef : null}
-              className={`lyrics-line ${isActive ? 'lyrics-active' : ''} ${isPast ? 'lyrics-past' : ''} ${isFuture ? 'lyrics-future' : ''}`}
-              onClick={() => onSeek && onSeek(line.time)}
-              title="Cliquer pour écouter à partir d'ici"
-            >
-              <span className="lyrics-seek-hint">{formatTime(line.time)}</span>
-              <span className="lyrics-text">{line.text}</span>
+            <div key={i} className="lyrics-item-group">
+              <div
+                ref={isLineActiveTarget ? activeLineRef : null}
+                className={lineClass}
+                onClick={() => onSeek && onSeek(line.time)}
+                title="Cliquer pour écouter à partir d'ici"
+              >
+                <span className="lyrics-seek-hint">{formatTime(line.time)}</span>
+                <span className="lyrics-text">{line.text}</span>
+              </div>
+
+              {showInterludeAfterThis && (
+                <div ref={activeLineRef} className="cider-instrumental-wrapper">
+                  <CiderInstrumentalBreak
+                    isIntro={false}
+                    isAnticipating={isInterludeAnticipating}
+                    label="Passage instrumental"
+                    onClick={() => onSeek && onSeek(Math.max(0, lyrics.synced[i + 1].time - 1200))}
+                  />
+                </div>
+              )}
             </div>
           );
         })}
@@ -151,7 +257,7 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
         <div className="lyrics-padding-bottom" />
 
         {/* Floating Resync Pill button when manually scrolled */}
-        {isUserScrolling && activeIndex >= 0 && (
+        {isUserScrolling && (
           <button
             className="cider-resync-pill"
             onClick={handleManualResync}
@@ -186,7 +292,7 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   );
 }
 
-export default function Player({ guildId, currentTrack, isPlaying, serverPosition, duration, volume, loop, setQueueState, onLyricsToggle, tracks }) {
+export default function Player({ guildId, currentTrack, isPlaying, serverPosition, positionTimestamp, duration, volume, loop, setQueueState, onLyricsToggle, tracks }) {
   const [localProgress, setLocalProgress] = useState(serverPosition || 0);
   const [lastTrackUrl, setLastTrackUrl] = useState(currentTrack?.url);
   const [animateCover, setAnimateCover] = useState(false);
@@ -273,23 +379,24 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   }
 
-  // Smooth calibration with serverPosition ticks without jerky teleportation
+  // Smooth calibration with serverPosition ticks without cumulative lag drift
   useEffect(() => {
     const isCurrentlyPlaying = isPlaying;
     clockRef.current.isPlaying = isCurrentlyPlaying;
     const now = performance.now();
+    const targetPos = typeof serverPosition === 'number' ? serverPosition : 0;
     const elapsed = isCurrentlyPlaying ? (now - clockRef.current.baseTimestamp) : 0;
     const estimated = clockRef.current.basePos + elapsed;
-    const delta = Math.abs(estimated - (serverPosition || 0));
+    const delta = Math.abs(estimated - targetPos);
 
-    if (delta > 1500) {
+    if (delta > 750 || !isCurrentlyPlaying) {
       // Large jump (seek or initial start) -> immediate snap
-      clockRef.current.basePos = serverPosition || 0;
+      clockRef.current.basePos = targetPos;
       clockRef.current.baseTimestamp = now;
-      setLocalProgress(serverPosition || 0);
+      setLocalProgress(targetPos);
     } else {
-      // Micro-jitter smoothing (< 1.5s): softly blend basePos to avoid visual jumps
-      clockRef.current.basePos = estimated * 0.7 + (serverPosition || 0) * 0.3;
+      // Direct alignment to lock clock to server without lag drift
+      clockRef.current.basePos = targetPos;
       clockRef.current.baseTimestamp = now;
     }
   }, [serverPosition, isPlaying]);
@@ -302,8 +409,8 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     let lastTickTime = performance.now();
 
     const tick = (now) => {
-      // Update at smooth ~35fps rate to balance ultra-fluid animation with CPU efficiency
-      if (now - lastTickTime >= 28) {
+      // 60fps tick (every 16ms)
+      if (now - lastTickTime >= 16) {
         lastTickTime = now;
         const elapsed = now - clockRef.current.baseTimestamp;
         const current = clockRef.current.basePos + elapsed;
@@ -438,13 +545,15 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   };
 
   const handleSeek = useCallback(async (timeMs) => {
+    clockRef.current.basePos = timeMs;
+    clockRef.current.baseTimestamp = performance.now();
+    setLocalProgress(timeMs);
     try {
       await fetch(`${API_URL}/api/guilds/${guildId}/seek`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ position: timeMs })
       });
-      setLocalProgress(timeMs);
     } catch (e) {
       console.error('[Seek]', e);
     }
@@ -491,7 +600,17 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
         </div>
 
         <div className="progress-section" style={{ width: '100%', maxWidth: 'min(100%, 45vh)', marginTop: '12px' }}>
-          <div className="progress-container">
+          <div
+            className="progress-container"
+            style={{ cursor: currentTrack ? 'pointer' : 'default' }}
+            onClick={(e) => {
+              if (!currentTrack || !duration) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clickX = e.clientX - rect.left;
+              const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+              handleSeek(Math.round(ratio * duration));
+            }}
+          >
             <div className="progress-bar" style={{ width: `${progressPercent}%` }}></div>
           </div>
           <div className="time-info">
