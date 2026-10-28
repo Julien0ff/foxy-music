@@ -129,19 +129,33 @@ function LyricWords({ text, line, currentTimeMs, isActive }) {
     <span className="lyrics-words-wrapper">
       {words.map((word, k) => {
         const startFraction = cumWeight / totalWeight;
-        cumWeight += charWeights[k];
+        const wordWeight = charWeights[k];
+        cumWeight += wordWeight;
         const endFraction = cumWeight / totalWeight;
 
+        // Continuous sub-letter progress from 0.00 to 1.00 within this specific word
+        let wordProgress = 0;
         let status = 'word-waiting';
         if (progress >= endFraction) {
+          wordProgress = 1;
           status = 'word-sung';
-        } else if (progress >= startFraction) {
+        } else if (progress > startFraction) {
+          wordProgress = (progress - startFraction) / (endFraction - startFraction);
           status = 'word-singing';
         }
 
+        const fillPercent = (Math.min(1, Math.max(0, wordProgress)) * 100).toFixed(1);
+
         return (
           <span key={k} className={`lyrics-word ${status}`}>
-            {word}
+            <span
+              className="word-fill-text"
+              style={{
+                '--word-fill': `${fillPercent}%`
+              }}
+            >
+              {word}
+            </span>
             {k < words.length - 1 && <span className="word-space">&nbsp;</span>}
           </span>
         );
@@ -154,6 +168,7 @@ function LyricWords({ text, line, currentTimeMs, isActive }) {
 function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
   const containerRef = useRef(null);
   const activeLineRef = useRef(null);
+  const scrollAnimRef = useRef(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const userScrollTimeoutRef = useRef(null);
 
@@ -176,13 +191,19 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
     return idx;
   }, [lines, currentTimeMs]);
 
-  // Smooth 60fps cubic easing auto-scroll centering active line at ~36% viewport height
+  // Smooth 60fps quartic easing auto-scroll centering active line at ~36% viewport height
   const scrollToActive = useCallback((smooth = true) => {
     if (!containerRef.current || !activeLineRef.current) return;
     const container = containerRef.current;
     const activeEl = activeLineRef.current;
     const containerHeight = container.clientHeight;
     const targetScroll = activeEl.offsetTop - (containerHeight * 0.36);
+
+    // Cancel previous scroll animation so multiple line transitions never conflict
+    if (scrollAnimRef.current) {
+      cancelAnimationFrame(scrollAnimRef.current);
+      scrollAnimRef.current = null;
+    }
 
     if (!smooth) {
       container.scrollTop = Math.max(0, targetScroll);
@@ -194,18 +215,20 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
     if (Math.abs(distance) < 2) return;
 
     const startTime = performance.now();
-    const duration = 650;
-    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const duration = 750;
+    const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
 
     const step = (now) => {
       const elapsed = now - startTime;
       const progress = Math.min(1, elapsed / duration);
-      container.scrollTop = startScroll + distance * easeOutCubic(progress);
+      container.scrollTop = startScroll + distance * easeOutQuart(progress);
       if (progress < 1) {
-        requestAnimationFrame(step);
+        scrollAnimRef.current = requestAnimationFrame(step);
+      } else {
+        scrollAnimRef.current = null;
       }
     };
-    requestAnimationFrame(step);
+    scrollAnimRef.current = requestAnimationFrame(step);
   }, []);
 
   // Center active line whenever activeIndex changes
@@ -217,6 +240,10 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
 
   // Only detach auto-sync when the user physically touches or wheels the list
   const handleUserInteraction = () => {
+    if (scrollAnimRef.current) {
+      cancelAnimationFrame(scrollAnimRef.current);
+      scrollAnimRef.current = null;
+    }
     setIsUserScrolling(true);
     if (userScrollTimeoutRef.current) clearTimeout(userScrollTimeoutRef.current);
     userScrollTimeoutRef.current = setTimeout(() => {
@@ -516,15 +543,11 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     let animId;
     let lastTickTime = performance.now();
 
-    const tick = (now) => {
-      // 60fps tick (every 16ms)
-      if (now - lastTickTime >= 16) {
-        lastTickTime = now;
-        const elapsed = now - clockRef.current.baseTimestamp;
-        const current = clockRef.current.basePos + elapsed;
-        const clamped = duration > 0 ? Math.min(current, duration) : Math.max(0, current);
-        setLocalProgress(clamped);
-      }
+    const tick = () => {
+      const elapsed = performance.now() - clockRef.current.baseTimestamp;
+      const current = clockRef.current.basePos + elapsed;
+      const clamped = duration > 0 ? Math.min(current, duration) : Math.max(0, current);
+      setLocalProgress(clamped);
       animId = requestAnimationFrame(tick);
     };
 

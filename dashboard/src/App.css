@@ -508,9 +508,9 @@
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 28px;
   font-weight: 700;
-  line-height: 1.4;
-  padding: 8px 14px;
-  margin: 4px 0;
+  line-height: 1.45;
+  padding: 10px 16px;
+  margin: 6px 0;
   border-radius: 14px;
   color: #ffffff;
   cursor: pointer;
@@ -520,12 +520,12 @@
   align-items: flex-start;
   gap: 14px;
   transform-origin: left center;
-  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform, opacity;
   transition:
-    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 0.65s cubic-bezier(0.16, 1, 0.3, 1),
-    text-shadow 0.45s ease;
+    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Timestamp hint on line hover */
@@ -567,40 +567,43 @@
   word-break: break-word;
 }
 
-/* Fluid Apple Music Sing / Cider word-by-word karaoke illumination */
+/* Continuous sub-letter karaoke text fill (Apple Music Sing / Cider Aesthetics) */
 .lyrics-words-wrapper {
   display: inline;
 }
 
 .lyrics-word {
   display: inline;
+  position: relative;
   white-space: pre-wrap;
-  transition:
-    color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-    text-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.35s ease;
 }
 
-.lyrics-word.word-waiting {
-  color: rgba(255, 255, 255, 0.32);
-  opacity: 0.42;
-  text-shadow: none;
+.word-fill-text {
+  display: inline;
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #ffffff var(--word-fill, 0%),
+    rgba(255, 255, 255, 0.32) calc(var(--word-fill, 0%) + 1px),
+    rgba(255, 255, 255, 0.32) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  transition: filter 0.22s ease;
 }
 
-.lyrics-word.word-singing {
-  color: #ffffff;
-  opacity: 1;
-  text-shadow:
-    0 0 16px rgba(255, 255, 255, 0.95),
-    0 0 32px rgba(255, 125, 45, 0.7);
+.lyrics-word.word-singing .word-fill-text {
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 22px rgba(255, 125, 45, 0.75));
 }
 
-.lyrics-word.word-sung {
-  color: #ffffff;
-  opacity: 0.95;
-  text-shadow:
-    0 0 10px rgba(255, 255, 255, 0.4),
-    0 0 20px rgba(255, 125, 45, 0.25);
+.lyrics-word.word-sung .word-fill-text {
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 14px rgba(255, 125, 45, 0.2));
+}
+
+.lyrics-word.word-waiting .word-fill-text {
+  filter: none;
 }
 
 .word-space {
@@ -647,12 +650,8 @@
 /* Line states (Apple Music Sing / Cider Aesthetics) */
 .lyrics-line.lyrics-active {
   opacity: 1 !important;
-  filter: blur(0px) !important;
-  transform: scale(1.04) translateZ(0) !important;
+  transform: scale(1.025) translateZ(0) !important;
   cursor: default;
-  text-shadow:
-    0 0 24px rgba(255, 255, 255, 0.75),
-    0 0 45px rgba(255, 120, 50, 0.45) !important;
   background: transparent !important;
 }
 
@@ -662,41 +661,31 @@
 
 /* Past lines fade away smoothly (focus stays on the singing) */
 .lyrics-line.lyrics-prev {
-  opacity: 0.16;
-  filter: blur(3px);
-  transform: scale(0.95) translateZ(0);
-  text-shadow: none;
+  opacity: 0.18;
+  transform: scale(0.97) translateZ(0);
 }
 
 .lyrics-line.lyrics-past {
   opacity: 0.05;
-  filter: blur(5px);
-  transform: scale(0.92) translateZ(0);
-  text-shadow: none;
+  transform: scale(0.93) translateZ(0);
   pointer-events: none;
 }
 
 /* Upcoming lines: subtle whisper ahead */
 .lyrics-line.lyrics-next {
-  opacity: 0.35;
-  filter: blur(2px);
-  transform: scale(0.97) translateZ(0);
-  text-shadow: none;
+  opacity: 0.38;
+  transform: scale(0.985) translateZ(0);
 }
 
 .lyrics-line.lyrics-future {
   opacity: 0.10;
-  filter: blur(4.5px);
-  transform: scale(0.93) translateZ(0);
-  text-shadow: none;
+  transform: scale(0.94) translateZ(0);
 }
 
 /* Intro instrumental: heavily frost future lines so focus is 100% on intro */
 .lyrics-line.lyrics-intro-frosted {
   opacity: 0.04 !important;
-  filter: blur(8px) !important;
-  transform: scale(0.91) translateZ(0) !important;
-  text-shadow: none !important;
+  transform: scale(0.92) translateZ(0) !important;
   pointer-events: none;
 }
 
