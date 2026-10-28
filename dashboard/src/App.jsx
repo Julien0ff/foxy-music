@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import Hls from 'hls.js';
 import Player from './components/Player';
 import QueueList from './components/QueueList';
 import SearchBar from './components/SearchBar';
@@ -12,6 +13,68 @@ import { API_URL } from './config';
 import TermsOfService from './components/TermsOfService';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import SettingsModal from './components/SettingsModal';
+
+// Ambient blurred looping video background for tracks with Apple Music motion artwork
+function AmbientMotionBg({ url, isPlaying }) {
+  const videoRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setReady(false);
+    const video = videoRef.current;
+    if (!video || !url) return;
+
+    let hls = null;
+    let cancelled = false;
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url;
+    } else if (Hls && Hls.isSupported()) {
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 30
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    }
+
+    const onPlay = () => {
+      if (!cancelled) setReady(true);
+    };
+    video.addEventListener('playing', onPlay);
+    video.play().catch(() => {});
+
+    return () => {
+      cancelled = true;
+      video.removeEventListener('playing', onPlay);
+      if (hls) hls.destroy();
+      video.src = '';
+    };
+  }, [url]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isPlaying) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [isPlaying]);
+
+  return (
+    <video
+      ref={videoRef}
+      className={`dynamic-bg-motion-video ${ready ? 'active' : ''}`}
+      muted
+      loop
+      playsInline
+      autoPlay
+      aria-hidden="true"
+    />
+  );
+}
 
 const CLIENT_ID = '1509947523949662380';
 const REDIRECT_URI = encodeURIComponent(window.location.origin);
@@ -96,6 +159,35 @@ function App() {
     volume: 100,
     loop: false
   });
+
+  // Apple Music Motion Artwork URL for active track
+  const [motionUrl, setMotionUrl] = useState(null);
+
+  useEffect(() => {
+    const track = queueState.currentTrack;
+    if (!track || !track.title) {
+      setMotionUrl(null);
+      return;
+    }
+    let active = true;
+    const title = track.title;
+    const artist = track.artist || track.author || '';
+
+    fetch(`${API_URL}/api/motion-artwork?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (active) {
+          setMotionUrl(data?.motionUrl || null);
+        }
+      })
+      .catch(() => {
+        if (active) setMotionUrl(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [queueState.currentTrack?.title, queueState.currentTrack?.artist, queueState.currentTrack?.url]);
 
   // Écouteurs pour la synchronisation du token OAuth depuis le popup
   useEffect(() => {
@@ -444,8 +536,22 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* Premium Double Layer Crossfading Backgrounds */}
+      {/* Premium Double Layer Crossfading Backgrounds & Dynamic Aurora Mesh */}
       <div className="dynamic-bg-container">
+        {/* Continuous organic fluid aurora orbs (animated in all cases!) */}
+        <div className="dynamic-aurora-mesh" aria-hidden="true">
+          <div className="aurora-orb orb-1" />
+          <div className="aurora-orb orb-2" />
+          <div className="aurora-orb orb-3" />
+          <div className="aurora-orb orb-4" />
+        </div>
+
+        {/* Ambient Motion Video Background (when official Apple Music motion artwork is available) */}
+        {motionUrl && (
+          <AmbientMotionBg url={motionUrl} isPlaying={queueState.isPlaying} />
+        )}
+
+        {/* Static cover crossfading layers with continuous breathing float animation */}
         <div 
           className={`dynamic-bg ${bgState.activeBg === 1 ? 'active' : ''}`} 
           style={{ backgroundImage: bgState.bg1 ? `url(${bgState.bg1})` : 'none' }}
@@ -454,6 +560,8 @@ function App() {
           className={`dynamic-bg ${bgState.activeBg === 2 ? 'active' : ''}`} 
           style={{ backgroundImage: bgState.bg2 ? `url(${bgState.bg2})` : 'none' }}
         ></div>
+
+        <div className="dynamic-ambient-overlay" aria-hidden="true" />
       </div>
 
       <Sidebar 
@@ -495,6 +603,7 @@ function App() {
                     setQueueState={setQueueState}
                     onLyricsToggle={setLyricsMode}
                     tracks={queueState.tracks}
+                    motionUrl={motionUrl}
                   />
                 </div>
               </div>

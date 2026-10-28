@@ -77,7 +77,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 }
 
 /* ========================================
-   BACKGROUND
+   BACKGROUND & DYNAMIC FLUID AURORA MESH
    ======================================== */
 .dynamic-bg-container {
   position: fixed;
@@ -87,9 +87,117 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   height: 100vh;
   z-index: -1;
   overflow: hidden;
-  background: #000;
+  background: #08080c;
 }
 
+/* Fluid Organic Aurora Mesh — Continuous Liquid Movement in ALL Cases */
+.dynamic-aurora-mesh {
+  position: absolute;
+  inset: -15%;
+  width: 130%;
+  height: 130%;
+  filter: blur(85px);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.55;
+}
+
+.aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+.aurora-orb.orb-1 {
+  width: 60vw;
+  height: 60vw;
+  max-width: 800px;
+  max-height: 800px;
+  top: -10%;
+  left: 5%;
+  background: radial-gradient(circle, rgba(255, 115, 0, 0.45) 0%, rgba(255, 60, 0, 0.15) 55%, transparent 75%);
+  animation: auroraMeshMove1 24s ease-in-out infinite alternate;
+}
+
+.aurora-orb.orb-2 {
+  width: 55vw;
+  height: 55vw;
+  max-width: 750px;
+  max-height: 750px;
+  bottom: -10%;
+  right: 5%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, rgba(139, 92, 246, 0.15) 55%, transparent 75%);
+  animation: auroraMeshMove2 28s ease-in-out infinite alternate;
+}
+
+.aurora-orb.orb-3 {
+  width: 50vw;
+  height: 50vw;
+  max-width: 650px;
+  max-height: 650px;
+  top: 30%;
+  left: 35%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.35) 0%, rgba(219, 39, 119, 0.12) 55%, transparent 75%);
+  animation: auroraMeshMove3 20s ease-in-out infinite alternate;
+}
+
+.aurora-orb.orb-4 {
+  width: 45vw;
+  height: 45vw;
+  max-width: 600px;
+  max-height: 600px;
+  bottom: 10%;
+  left: -5%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(37, 99, 235, 0.1) 55%, transparent 75%);
+  animation: auroraMeshMove4 26s ease-in-out infinite alternate;
+}
+
+@keyframes auroraMeshMove1 {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate(12%, 14%) scale(1.15) rotate(45deg); }
+  100% { transform: translate(-8%, 6%) scale(0.95) rotate(-30deg); }
+}
+
+@keyframes auroraMeshMove2 {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate(-14%, -10%) scale(1.18) rotate(-40deg); }
+  100% { transform: translate(10%, -6%) scale(0.92) rotate(35deg); }
+}
+
+@keyframes auroraMeshMove3 {
+  0% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-12%, 8%) scale(1.12); }
+  66% { transform: translate(8%, -10%) scale(0.94); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes auroraMeshMove4 {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(15%, -12%) scale(1.2); }
+  100% { transform: translate(-6%, 10%) scale(0.9); }
+}
+
+/* Ambient Motion Video Background (Apple Music animated covers) */
+.dynamic-bg-motion-video {
+  position: absolute;
+  top: -15%;
+  left: -15%;
+  width: 130%;
+  height: 130%;
+  object-fit: cover;
+  filter: blur(75px) brightness(0.42) saturate(1.5);
+  opacity: 0;
+  transition: opacity 1.5s ease-in-out;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.dynamic-bg-motion-video.active {
+  opacity: 0.85;
+}
+
+/* Static Cover Layers with continuous subtle organic breathing drift */
 .dynamic-bg {
   position: absolute;
   top: -20%;
@@ -98,13 +206,40 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   height: 140%;
   background-size: cover;
   background-position: center;
-  filter: blur(80px) brightness(0.4) saturate(1.4);
+  filter: blur(80px) brightness(0.38) saturate(1.4);
   opacity: 0;
   transition: opacity 1.2s ease-in-out;
+  z-index: 2;
+  will-change: transform;
 }
 
 .dynamic-bg.active {
   opacity: 1;
+  animation: ambientBgDrift 32s ease-in-out infinite alternate;
+}
+
+@keyframes ambientBgDrift {
+  0% {
+    transform: scale(1.06) translate(0%, 0%) rotate(0deg);
+  }
+  33% {
+    transform: scale(1.14) translate(2.5%, -2%) rotate(1.5deg);
+  }
+  66% {
+    transform: scale(1.1) translate(-2%, 2%) rotate(-1.2deg);
+  }
+  100% {
+    transform: scale(1.06) translate(0%, 0%) rotate(0deg);
+  }
+}
+
+/* Vignette overlay for visual depth and perfect typography contrast */
+.dynamic-ambient-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: radial-gradient(circle at 50% 50%, rgba(10, 10, 16, 0.25) 0%, rgba(6, 6, 10, 0.72) 100%);
+  pointer-events: none;
 }
 
 /* ========================================

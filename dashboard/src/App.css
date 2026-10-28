@@ -522,10 +522,11 @@
   transform-origin: left center;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  will-change: transform, opacity;
+  will-change: transform, opacity, filter;
   transition:
-    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Timestamp hint on line hover */
@@ -648,11 +649,26 @@
 }
 
 /* Line states (Apple Music Sing / Cider Aesthetics) */
+@keyframes lineEntranceBloom {
+  0% {
+    opacity: 0.44;
+    transform: scale(0.985) translateY(5px);
+    filter: blur(0.8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.03) translateY(0);
+    filter: blur(0px);
+  }
+}
+
 .lyrics-line.lyrics-active {
   opacity: 1 !important;
-  transform: scale(1.025) translateZ(0) !important;
+  transform: scale(1.03) translateY(0) translateZ(0) !important;
+  filter: blur(0px) !important;
   cursor: default;
   background: transparent !important;
+  animation: lineEntranceBloom 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .lyrics-line.lyrics-active .lyrics-seek-hint {
@@ -661,25 +677,36 @@
 
 /* Past lines fade away smoothly (focus stays on the singing) */
 .lyrics-line.lyrics-prev {
-  opacity: 0.18;
-  transform: scale(0.97) translateZ(0);
+  opacity: 0.28;
+  transform: scale(0.97) translateY(-3px) translateZ(0);
+  filter: blur(0.6px);
 }
 
 .lyrics-line.lyrics-past {
-  opacity: 0.05;
-  transform: scale(0.93) translateZ(0);
+  opacity: 0.12;
+  transform: scale(0.94) translateY(-6px) translateZ(0);
+  filter: blur(1.2px);
   pointer-events: none;
 }
 
 /* Upcoming lines: subtle whisper ahead */
 .lyrics-line.lyrics-next {
-  opacity: 0.38;
-  transform: scale(0.985) translateZ(0);
+  opacity: 0.44;
+  transform: scale(0.985) translateY(3px) translateZ(0);
+  filter: blur(0.5px);
 }
 
 .lyrics-line.lyrics-future {
-  opacity: 0.10;
-  transform: scale(0.94) translateZ(0);
+  opacity: 0.16;
+  transform: scale(0.94) translateY(6px) translateZ(0);
+  filter: blur(1.2px);
+}
+
+/* Past instrumental line softly dimmed without layout shift */
+.lyrics-line.lyrics-instrumental-past {
+  opacity: 0.12 !important;
+  transform: scale(0.92) translateZ(0) !important;
+  pointer-events: none;
 }
 
 /* Intro instrumental: heavily frost future lines so focus is 100% on intro */
@@ -985,6 +1012,84 @@
 
 .artwork.idle {
   filter: grayscale(10%) blur(10px);
+}
+
+/* Apple Music Style Motion Artwork Styles */
+.motion-artwork-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.artwork-static-base {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  transition: opacity 0.6s ease;
+}
+
+.artwork-motion-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: inherit;
+}
+
+.artwork-motion-video.video-active {
+  opacity: 1;
+}
+
+.motion-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.motion-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff6a00;
+  box-shadow: 0 0 8px #ff7700;
+  animation: motionDotPulse 2s ease-in-out infinite;
+}
+
+@keyframes motionDotPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+    box-shadow: 0 0 12px #ff9933;
+  }
 }
 
 @keyframes trackChange {

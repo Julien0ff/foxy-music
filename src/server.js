@@ -4,7 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { getGuildConfig, updateGuildConfig } = require('./utils/db');
 const { updatePanel } = require('./utils/panelUpdater');
-const { fetchLyrics } = require('./utils/lyrics');
+const { fetchLyrics, cleanTitle } = require('./utils/lyrics');
 const PlaylistParser = require('./utils/playlistParser');
 
 function startServer(client) {
@@ -1093,6 +1093,65 @@ function startServer(client) {
             return res.status(404).json({ error: 'Lyrics not found' });
         }
         return res.json(lyrics);
+    });
+
+    // --- Apple Music Motion Artwork (Animated Album Covers) ---
+    const motionArtworkCache = new Map();
+
+    app.get('/api/motion-artwork', async (req, res) => {
+        const title = (req.query.title || '').trim();
+        const artist = (req.query.artist || '').trim();
+        if (!title) {
+            return res.json({ motionUrl: null });
+        }
+
+        const cacheKey = `${artist.toLowerCase()}___${title.toLowerCase()}`;
+        if (motionArtworkCache.has(cacheKey)) {
+            const cached = motionArtworkCache.get(cacheKey);
+            if (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000) {
+                return res.json({ motionUrl: cached.motionUrl });
+            }
+        }
+
+        try {
+            const cleanedTitle = cleanTitle ? cleanTitle(title) : title;
+            const query = [cleanedTitle, artist].filter(Boolean).join(' ');
+            const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=3`;
+            
+            const itunesRes = await fetch(itunesUrl, { signal: AbortSignal.timeout(5000) });
+            if (!itunesRes.ok) {
+                motionArtworkCache.set(cacheKey, { motionUrl: null, timestamp: Date.now() });
+                return res.json({ motionUrl: null });
+            }
+            const data = await itunesRes.json();
+            const track = data.results?.[0];
+            if (!track || !track.collectionId) {
+                motionArtworkCache.set(cacheKey, { motionUrl: null, timestamp: Date.now() });
+                return res.json({ motionUrl: null });
+            }
+
+            const albumUrl = `https://music.apple.com/us/album/${track.collectionId}`;
+            const pageRes = await fetch(albumUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                },
+                signal: AbortSignal.timeout(5000)
+            });
+            if (!pageRes.ok) {
+                motionArtworkCache.set(cacheKey, { motionUrl: null, timestamp: Date.now() });
+                return res.json({ motionUrl: null });
+            }
+            const html = await pageRes.text();
+            const match = html.match(/"motionDetailSquare":\{.*?"video":"(https:\/\/[^"]+\.m3u8)"/);
+            const motionUrl = match ? match[1] : null;
+
+            motionArtworkCache.set(cacheKey, { motionUrl, timestamp: Date.now() });
+            return res.json({ motionUrl });
+        } catch (err) {
+            console.error('[Motion Artwork Error]', err.message);
+            motionArtworkCache.set(cacheKey, { motionUrl: null, timestamp: Date.now() });
+            return res.json({ motionUrl: null });
+        }
     });
 
     // --- Seek ---

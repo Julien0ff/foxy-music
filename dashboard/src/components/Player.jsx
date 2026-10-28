@@ -14,6 +14,94 @@ import {
   X
 } from 'lucide-react';
 import { API_URL } from '../config';
+import Hls from 'hls.js';
+
+// Apple Music Style Motion Artwork with Hls.js & graceful fallback
+function MotionArtwork({ url, fallbackThumbnail, isPlaying, className }) {
+  const videoRef = useRef(null);
+  const [videoReady, setVideoReady] = useState(false);
+
+  useEffect(() => {
+    setVideoReady(false);
+    const video = videoRef.current;
+    if (!video || !url) return;
+
+    let hls = null;
+    let destroyed = false;
+
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url;
+    } else if (Hls && Hls.isSupported()) {
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 30
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    }
+
+    const handlePlaying = () => {
+      if (!destroyed) setVideoReady(true);
+    };
+    const handleError = () => {
+      if (!destroyed) setVideoReady(false);
+    };
+
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('error', handleError);
+
+    video.play().catch(() => {});
+
+    return () => {
+      destroyed = true;
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('error', handleError);
+      if (hls) hls.destroy();
+      video.src = '';
+    };
+  }, [url]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isPlaying) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [isPlaying]);
+
+  return (
+    <div className={`motion-artwork-container ${className || ''}`}>
+      {fallbackThumbnail ? (
+        <img
+          src={fallbackThumbnail}
+          alt="Cover"
+          className="artwork-static-base"
+        />
+      ) : (
+        <div className="artwork-static-base" style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Music size={80} color="white" opacity={0.5} />
+        </div>
+      )}
+      <video
+        ref={videoRef}
+        className={`artwork-motion-video ${videoReady ? 'video-active' : ''}`}
+        muted
+        loop
+        playsInline
+        autoPlay
+      />
+      {videoReady && (
+        <div className="motion-badge" title="Pochette animée Apple Music">
+          <span className="motion-badge-dot" />
+          <span>ANIMÉ</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Helper to extract YouTube video ID
 const getYoutubeThumbnail = (url) => {
@@ -81,11 +169,19 @@ function prepareLyricsLines(syncedLines) {
     const lineEndTime = next ? next.time : (cur.time + 5500);
 
     const parsed = parseLyricLineText(cur.text);
+    const mainText = parsed.main || '';
+    const words = mainText ? mainText.split(/\s+/).filter(Boolean) : [];
+    const charWeights = words.map(w => Math.max(2, w.replace(/[^a-zA-Z0-9\u00C0-\u017F]/g, '').length));
+    const totalWeight = charWeights.reduce((a, b) => a + b, 0) || 1;
+
     processed.push({
       ...cur,
       endTime: lineEndTime,
       vocalEndTime,
       parsed,
+      words,
+      charWeights,
+      totalWeight,
       isInstrumental: false
     });
 
@@ -104,25 +200,27 @@ function prepareLyricsLines(syncedLines) {
   return processed;
 }
 
-// Render line words with smooth karaoke wave animation when active (zero-layout shift, guaranteed spacing)
-function LyricWords({ text, line, currentTimeMs, isActive }) {
-  if (!text) return null;
+// Render line words with smooth karaoke wave animation (zero-layout shift, identical DOM structure across states)
+function LyricWords({ line, currentTimeMs, lineStatus }) {
+  const words = line?.words;
+  if (!words || words.length === 0) return null;
 
-  if (!isActive) {
-    return <span className="lyrics-text-plain">{text}</span>;
+  const isActive = lineStatus === 'active';
+  const isPast = lineStatus === 'prev' || lineStatus === 'past';
+
+  const totalWeight = line.totalWeight || 1;
+  const charWeights = line.charWeights;
+
+  let lineProgress = 0;
+  if (isActive) {
+    const vocalDuration = Math.max(1600, Math.min(6500, line.vocalEndTime ? (line.vocalEndTime - line.time) : (line.endTime - line.time)));
+    const elapsed = Math.max(0, currentTimeMs - line.time);
+    lineProgress = Math.min(1, elapsed / vocalDuration);
+  } else if (isPast) {
+    lineProgress = 1;
+  } else {
+    lineProgress = 0;
   }
-
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) return null;
-
-  // Weight each word by character count so syllables get natural singing duration
-  const charWeights = words.map(w => Math.max(2, w.replace(/[^a-zA-Z0-9\u00C0-\u017F]/g, '').length));
-  const totalWeight = charWeights.reduce((a, b) => a + b, 0) || 1;
-
-  // Vocal duration for this line
-  const vocalDuration = Math.max(1600, Math.min(6500, line.vocalEndTime ? (line.vocalEndTime - line.time) : (line.endTime - line.time)));
-  const elapsed = Math.max(0, currentTimeMs - line.time);
-  const progress = Math.min(1, elapsed / vocalDuration);
 
   let cumWeight = 0;
   return (
@@ -133,14 +231,13 @@ function LyricWords({ text, line, currentTimeMs, isActive }) {
         cumWeight += wordWeight;
         const endFraction = cumWeight / totalWeight;
 
-        // Continuous sub-letter progress from 0.00 to 1.00 within this specific word
         let wordProgress = 0;
         let status = 'word-waiting';
-        if (progress >= endFraction) {
+        if (lineProgress >= endFraction) {
           wordProgress = 1;
           status = 'word-sung';
-        } else if (progress > startFraction) {
-          wordProgress = (progress - startFraction) / (endFraction - startFraction);
+        } else if (lineProgress > startFraction) {
+          wordProgress = (lineProgress - startFraction) / (endFraction - startFraction);
           status = 'word-singing';
         }
 
@@ -298,14 +395,15 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
           const isNext = i === activeIndex + 1;
           const isFuture = i > activeIndex + 1;
 
-          // Past instrumental breaks vanish completely from the screen
+          // Past instrumental breaks do not abruptly vanish; they softly fade
           if (line.isInstrumental) {
-            if (isPast) return null;
             return (
               <div
                 key={`inst-${line.time}`}
                 ref={isActive ? activeLineRef : null}
-                className={`lyrics-line lyrics-instrumental-line ${isActive ? 'lyrics-active' : 'lyrics-future'}`}
+                className={`lyrics-line lyrics-instrumental-line ${
+                  isActive ? 'lyrics-active' : isPast ? 'lyrics-instrumental-past' : 'lyrics-future'
+                }`}
                 onClick={() => onSeek && onSeek(Math.max(0, line.endTime - 600))}
                 title="Cliquer pour avancer vers le chant"
               >
@@ -319,16 +417,22 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
           }
 
           let lineClass = 'lyrics-line';
+          let lineStatus = 'future';
           if (isActive) {
             lineClass += ' lyrics-active';
+            lineStatus = 'active';
           } else if (isNext) {
             lineClass += ' lyrics-next';
+            lineStatus = 'next';
           } else if (isFuture) {
             lineClass += ' lyrics-future';
+            lineStatus = 'future';
           } else if (isPrev) {
             lineClass += ' lyrics-prev';
+            lineStatus = 'prev';
           } else if (isOlderPast) {
             lineClass += ' lyrics-past';
+            lineStatus = 'past';
           }
 
           // When intro instrumental is playing, softly frost all following lines
@@ -354,10 +458,9 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
                   <>
                     <div className="lyrics-main-line">
                       <LyricWords
-                        text={main}
                         line={line}
                         currentTimeMs={currentTimeMs}
-                        isActive={isActive}
+                        lineStatus={lineStatus}
                       />
                     </div>
                     {backing && backing.length > 0 && (
@@ -406,10 +509,42 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
   );
 }
 
-export default function Player({ guildId, currentTrack, isPlaying, serverPosition, positionTimestamp, duration, volume, loop, setQueueState, onLyricsToggle, tracks }) {
+export default function Player({ guildId, currentTrack, isPlaying, serverPosition, positionTimestamp, duration, volume, loop, setQueueState, onLyricsToggle, tracks, motionUrl }) {
   const [localProgress, setLocalProgress] = useState(serverPosition || 0);
   const [lastTrackUrl, setLastTrackUrl] = useState(currentTrack?.url);
   const [animateCover, setAnimateCover] = useState(false);
+
+  // Fallback internal motion artwork fetcher if not provided from parent
+  const [internalMotionUrl, setInternalMotionUrl] = useState(null);
+
+  useEffect(() => {
+    if (motionUrl !== undefined) {
+      setInternalMotionUrl(motionUrl);
+      return;
+    }
+    if (!currentTrack || !currentTrack.title) {
+      setInternalMotionUrl(null);
+      return;
+    }
+    let active = true;
+    const title = currentTrack.title;
+    const artist = currentTrack.artist || currentTrack.author || '';
+
+    fetch(`${API_URL}/api/motion-artwork?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (active) setInternalMotionUrl(data?.motionUrl || null);
+      })
+      .catch(() => {
+        if (active) setInternalMotionUrl(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [motionUrl, currentTrack?.title, currentTrack?.artist, currentTrack?.url]);
+
+  const effectiveMotionUrl = motionUrl !== undefined ? motionUrl : internalMotionUrl;
 
   // Sync Offset (Fine-tuning in milliseconds, saved per track)
   const [syncOffset, setSyncOffset] = useState(0);
@@ -722,7 +857,14 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
       {/* Left side: Player */}
       <div className="player-main">
         <div className="artwork-wrapper">
-          {thumbnail ? (
+          {effectiveMotionUrl ? (
+            <MotionArtwork
+              url={effectiveMotionUrl}
+              fallbackThumbnail={thumbnail}
+              isPlaying={isPlaying}
+              className={`artwork ${currentTrack ? '' : 'idle'} ${animateCover ? 'track-transition' : ''}`}
+            />
+          ) : thumbnail ? (
             <img src={thumbnail} alt="Cover" className={`artwork ${currentTrack ? '' : 'idle'} ${animateCover ? 'track-transition' : ''}`} />
           ) : (
             <div className={`artwork ${currentTrack ? '' : 'idle'} ${animateCover ? 'track-transition' : ''}`} style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
