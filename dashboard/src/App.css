@@ -216,8 +216,8 @@
   align-items: center;
   flex-shrink: 0;
   padding: 24px 44px 16px 44px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), transparent);
+  border-bottom: none;
+  background: transparent;
   position: relative;
   z-index: 5;
 }
@@ -472,20 +472,21 @@
   flex-direction: column;
   height: 100%;
   position: relative;
-  z-index: 1;
-  /* Immersion fade top & bottom */
+  z-index: 2;
+  background: transparent;
+  /* Immersion fade top & bottom for text only */
   mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    black 12%,
-    black 84%,
+    black 14%,
+    black 82%,
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    black 12%,
-    black 84%,
+    black 14%,
+    black 82%,
     transparent 100%
   );
 }
@@ -563,6 +564,8 @@
   font-weight: 700;
   line-height: 1.35;
   letter-spacing: -0.025em;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Secondary Backing Vocals (parentheses: e.g. "(Hee-hee)") */
@@ -601,42 +604,6 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
-/* Word-by-word smooth karaoke kinetics */
-.lyrics-word {
-  display: inline-block;
-  will-change: transform, opacity, filter, text-shadow;
-  transition:
-    transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-    color 0.25s ease,
-    opacity 0.25s ease,
-    text-shadow 0.25s ease;
-}
-
-.lyrics-word.word-singing {
-  color: #ffffff;
-  transform: scale(1.08) translateY(-2px);
-  opacity: 1;
-  text-shadow:
-    0 0 16px rgba(255, 255, 255, 0.95),
-    0 0 35px rgba(255, 120, 50, 0.7);
-}
-
-.lyrics-word.word-sung {
-  color: #ffffff;
-  transform: scale(1);
-  opacity: 0.96;
-  text-shadow:
-    0 0 12px rgba(255, 255, 255, 0.6),
-    0 0 25px rgba(255, 120, 50, 0.35);
-}
-
-.lyrics-word.word-waiting {
-  color: rgba(255, 255, 255, 0.45);
-  transform: scale(0.98);
-  opacity: 0.55;
-  text-shadow: none;
-}
-
 /* Line states (Apple Music Sing / Cider Aesthetics) */
 .lyrics-line.lyrics-active {
   opacity: 1 !important;
@@ -644,9 +611,17 @@
   transform: scale(1.05) translateZ(0) !important;
   cursor: default;
   text-shadow:
-    0 0 22px rgba(255, 255, 255, 0.7),
+    0 0 22px rgba(255, 255, 255, 0.75),
     0 0 45px rgba(255, 120, 50, 0.45) !important;
   background: transparent !important;
+}
+
+.lyrics-line.lyrics-active.lyrics-settled {
+  transform: scale(1.02) translateZ(0) !important;
+  opacity: 0.88 !important;
+  text-shadow:
+    0 0 14px rgba(255, 255, 255, 0.5),
+    0 0 28px rgba(255, 120, 50, 0.25) !important;
 }
 
 .lyrics-line.lyrics-active .lyrics-seek-hint {

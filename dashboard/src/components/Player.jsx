@@ -56,11 +56,12 @@ function prepareLyricsLines(syncedLines) {
   if (!syncedLines || syncedLines.length === 0) return [];
   const processed = [];
 
-  // Check intro instrumental (if song starts with >= 3.5s intro)
+  // Check intro instrumental (gap before first vocal >= 3.5s)
   if (syncedLines[0].time >= 3500) {
     processed.push({
       time: 0,
       endTime: syncedLines[0].time,
+      vocalEndTime: syncedLines[0].time,
       isInstrumental: true,
       text: '•••'
     });
@@ -69,23 +70,31 @@ function prepareLyricsLines(syncedLines) {
   for (let i = 0; i < syncedLines.length; i++) {
     const cur = syncedLines[i];
     const next = syncedLines[i + 1];
-    const endTime = next ? next.time : (cur.time + 5500);
+
+    // Estimate natural vocal duration based on text length:
+    // ~75ms per character clamped between 2000ms and 4800ms
+    const textLen = (cur.text || '').length;
+    const estDuration = Math.min(4800, Math.max(2000, textLen * 75));
+    const gap = next ? (next.time - cur.time) : 5500;
+    const vocalDuration = Math.min(gap, estDuration);
+    const vocalEndTime = cur.time + vocalDuration;
+    const lineEndTime = next ? next.time : (cur.time + 5500);
 
     const parsed = parseLyricLineText(cur.text);
     processed.push({
       ...cur,
-      endTime,
+      endTime: lineEndTime,
+      vocalEndTime,
       parsed,
       isInstrumental: false
     });
 
-    // Check instrumental interlude between verses (gap >= 7.5 seconds)
-    if (next && (next.time - cur.time) >= 7500) {
-      const vocalDuration = Math.min(4500, Math.max(2500, (next.time - cur.time) - 3000));
-      const interludeStart = cur.time + vocalDuration;
+    // Check instrumental interlude between verses (gap >= 4500ms and interlude pause >= 1800ms)
+    if (next && gap >= 4500 && (gap - vocalDuration) >= 1800) {
       processed.push({
-        time: interludeStart,
+        time: vocalEndTime,
         endTime: next.time,
+        vocalEndTime: next.time,
         isInstrumental: true,
         text: '•••'
       });
@@ -95,43 +104,8 @@ function prepareLyricsLines(syncedLines) {
   return processed;
 }
 
-// Render line words with smooth karaoke wave animation when active
-function LyricWords({ text, line, currentTimeMs, isActive }) {
-  if (!text) return null;
-  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
-  if (words.length === 0) return null;
-
-  if (!isActive) {
-    return <span>{text}</span>;
-  }
-
-  const lineDuration = Math.max(1200, Math.min(5500, line.endTime - line.time));
-  const elapsed = Math.max(0, currentTimeMs - line.time);
-  const progress = Math.min(1, elapsed / lineDuration);
-
-  return (
-    <>
-      {words.map((word, k) => {
-        const wordStart = k / words.length;
-        const wordEnd = (k + 1) / words.length;
-        let wordState = 'word-waiting';
-        if (progress >= wordEnd) {
-          wordState = 'word-sung';
-        } else if (progress >= wordStart) {
-          wordState = 'word-singing';
-        }
-        return (
-          <span key={k} className={`lyrics-word ${wordState}`}>
-            {word}{' '}
-          </span>
-        );
-      })}
-    </>
-  );
-}
-
 // Lyrics display component (Cider / Apple Music Sing visual aesthetics & kinetics)
-function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
+function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
   const containerRef = useRef(null);
   const activeLineRef = useRef(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -195,11 +169,6 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   if (isLoading) {
     return (
       <div className="lyrics-container lyrics-loading">
-        <div className="cider-aura-wrapper" aria-hidden="true">
-          <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-          <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-          <div className="cider-aura-blob blob-3" />
-        </div>
         <div className="lyrics-spinner" />
         <p>Recherche des paroles synchronisées...</p>
       </div>
@@ -211,11 +180,6 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   if (hasNoLyrics) {
     return (
       <div className="lyrics-container lyrics-empty">
-        <div className="cider-aura-wrapper" aria-hidden="true">
-          <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-          <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-          <div className="cider-aura-blob blob-3" />
-        </div>
         <Mic size={48} opacity={0.25} />
         <p>Aucune parole disponible pour ce titre.</p>
       </div>
@@ -233,14 +197,6 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
         onWheel={handleUserInteraction}
         onTouchMove={handleUserInteraction}
       >
-        {/* Dynamic Cider Fluid Aurora Backdrop */}
-        <div className="cider-aura-wrapper" aria-hidden="true">
-          <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-          <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-          <div className="cider-aura-blob blob-3" />
-          <div className="cider-aura-glass" />
-        </div>
-
         <div className="lyrics-padding-top" />
 
         {lines.map((line, i) => {
@@ -253,10 +209,18 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
           if (line.isInstrumental) {
             lineClass += ' lyrics-instrumental-line';
           }
-          if (isActive) lineClass += ' lyrics-active';
-          else if (isNext) lineClass += ' lyrics-next';
-          else if (isPast) lineClass += ' lyrics-past';
-          else if (isFuture) lineClass += ' lyrics-future';
+          if (isActive) {
+            lineClass += ' lyrics-active';
+            if (line.vocalEndTime && currentTimeMs > line.vocalEndTime) {
+              lineClass += ' lyrics-settled';
+            }
+          } else if (isNext) {
+            lineClass += ' lyrics-next';
+          } else if (isPast) {
+            lineClass += ' lyrics-past';
+          } else if (isFuture) {
+            lineClass += ' lyrics-future';
+          }
 
           // When intro instrumental is playing, softly frost all following lines
           if (isIntroActive && i > 0) {
@@ -269,7 +233,7 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
                 key={`inst-${line.time}`}
                 ref={isActive ? activeLineRef : null}
                 className={lineClass}
-                onClick={() => onSeek && onSeek(Math.max(0, line.endTime - 1000))}
+                onClick={() => onSeek && onSeek(Math.max(0, line.endTime - 800))}
                 title="Cliquer pour avancer vers le chant"
               >
                 <div className="cider-dots-container">
@@ -298,12 +262,7 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
                 ) : (
                   <>
                     <div className="lyrics-main-line">
-                      <LyricWords
-                        text={main}
-                        line={line}
-                        currentTimeMs={currentTimeMs}
-                        isActive={isActive}
-                      />
+                      {main}
                     </div>
                     {backing && backing.length > 0 && (
                       <div className="lyrics-backing-sub">
@@ -339,12 +298,6 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   // Plain lyrics fallback (Atmospheric frosted glass layout)
   return (
     <div className="lyrics-container lyrics-plain">
-      <div className="cider-aura-wrapper" aria-hidden="true">
-        <div className="cider-aura-blob blob-1" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-        <div className="cider-aura-blob blob-2" style={artworkUrl ? { backgroundImage: `url(${artworkUrl})` } : undefined} />
-        <div className="cider-aura-blob blob-3" />
-        <div className="cider-aura-glass" />
-      </div>
       <div className="lyrics-padding-top" style={{ height: '14vh' }} />
       <div className="lyrics-plain-badge">Paroles textuelles (non synchronisées)</div>
       {(lyrics.plain || '').split('\n').map((line, i) => (
@@ -476,15 +429,14 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     const estimated = clockRef.current.basePos + elapsed;
     const delta = Math.abs(estimated - targetPos);
 
-    if (delta > 750 || !isCurrentlyPlaying) {
+    if (delta > 600 || !isCurrentlyPlaying) {
       // Large jump (seek or initial start) -> immediate snap
       clockRef.current.basePos = targetPos;
       clockRef.current.baseTimestamp = now;
       setLocalProgress(targetPos);
     } else {
-      // Direct alignment to lock clock to server without lag drift
-      clockRef.current.basePos = targetPos;
-      clockRef.current.baseTimestamp = now;
+      // Gentle micro-correction to keep clock locked without sudden 150ms jump
+      clockRef.current.basePos += (targetPos - estimated) * 0.15;
     }
   }, [serverPosition, isPlaying]);
 
@@ -768,6 +720,14 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
       {/* Right side: Lyrics Panel */}
       {isLyricsVisible && (
         <div className={`lyrics-panel ${isClosingLyrics ? 'lyrics-panel-closing' : ''}`}>
+          {/* Dynamic Cider Fluid Aurora Backdrop - Seamless across entire panel */}
+          <div className="cider-aura-wrapper" aria-hidden="true">
+            <div className="cider-aura-blob blob-1" style={thumbnail ? { backgroundImage: `url(${thumbnail})` } : undefined} />
+            <div className="cider-aura-blob blob-2" style={thumbnail ? { backgroundImage: `url(${thumbnail})` } : undefined} />
+            <div className="cider-aura-blob blob-3" />
+            <div className="cider-aura-glass" />
+          </div>
+
           <div className="lyrics-top-bar">
             {lyrics ? (
               <div className="lyrics-panel-header">
@@ -871,7 +831,6 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
             currentTimeMs={localProgress + syncOffset}
             onSeek={handleSeek}
             isLoading={lyricsLoading}
-            artworkUrl={thumbnail}
           />
         </div>
       )}
