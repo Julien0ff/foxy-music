@@ -476,10 +476,15 @@ function startServer(client) {
     });
 
     // --- Web Controls ---
-    app.post('/api/guilds/:id/pause', (req, res) => {
+    app.post('/api/guilds/:id/pause', async (req, res) => {
         const queue = global.queues ? global.queues.get(req.params.id) : null;
         if (queue && queue.player) {
-            queue.player.setPaused(true);
+            try {
+                await queue.player.setPaused(true);
+            } catch (err) {
+                console.error('[Pause Error]', err);
+            }
+            queue.player.paused = true;
             if (global.io) {
                 global.io.to(`queue_${req.params.id}`).emit('queue_update', {
                     currentTrack: queue.currentTrack,
@@ -490,16 +495,26 @@ function startServer(client) {
                     volume: queue.volume || 100,
                     loop: queue.loop || false
                 });
+                global.io.to(`queue_${req.params.id}`).emit('player_position', {
+                    position: queue.player.position,
+                    isPlaying: false,
+                    timestamp: Date.now()
+                });
             }
             return res.json({ success: true, isPlaying: false });
         }
         res.status(400).json({ error: 'No active player' });
     });
 
-    app.post('/api/guilds/:id/resume', (req, res) => {
+    app.post('/api/guilds/:id/resume', async (req, res) => {
         const queue = global.queues ? global.queues.get(req.params.id) : null;
         if (queue && queue.player) {
-            queue.player.setPaused(false);
+            try {
+                await queue.player.setPaused(false);
+            } catch (err) {
+                console.error('[Resume Error]', err);
+            }
+            queue.player.paused = false;
             if (global.io) {
                 global.io.to(`queue_${req.params.id}`).emit('queue_update', {
                     currentTrack: queue.currentTrack,
@@ -509,6 +524,11 @@ function startServer(client) {
                     duration: queue.currentTrack ? queue.currentTrack.duration || 0 : 0,
                     volume: queue.volume || 100,
                     loop: queue.loop || false
+                });
+                global.io.to(`queue_${req.params.id}`).emit('player_position', {
+                    position: queue.player.position,
+                    isPlaying: true,
+                    timestamp: Date.now()
                 });
             }
             return res.json({ success: true, isPlaying: true });

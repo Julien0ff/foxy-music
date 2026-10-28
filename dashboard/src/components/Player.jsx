@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   Play, 
   Pause, 
@@ -31,24 +31,102 @@ function formatTime(ms) {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 }
 
-// Cider Instrumental Break Component (glowing 3-dot pulse animation)
-function CiderInstrumentalBreak({ isAnticipating, label, onClick, isIntro }) {
+// Parse line into main vocal and secondary parenthetical backing vocals
+function parseLyricLineText(rawText) {
+  if (!rawText) return { main: '', backing: [], isOnlyBacking: false };
+  const trimmed = rawText.trim();
+  // Entire line is parenthesized: e.g. "(Ooh, hee-hee-hee)"
+  if (/^\(([^)]+)\)$/.test(trimmed)) {
+    return { isOnlyBacking: true, main: '', backing: [trimmed.slice(1, -1)] };
+  }
+  const backing = [];
+  const main = trimmed.replace(/\(([^)]+)\)/g, (_, match) => {
+    backing.push(match.trim());
+    return '';
+  }).replace(/\s{2,}/g, ' ').trim();
+
+  if (!main && backing.length > 0) {
+    return { isOnlyBacking: true, main: '', backing };
+  }
+  return { isOnlyBacking: false, main, backing };
+}
+
+// Pre-process lyrics lines into a stable list with instrumental entries (zero DOM layout shifts)
+function prepareLyricsLines(syncedLines) {
+  if (!syncedLines || syncedLines.length === 0) return [];
+  const processed = [];
+
+  // Check intro instrumental (if song starts with >= 3.5s intro)
+  if (syncedLines[0].time >= 3500) {
+    processed.push({
+      time: 0,
+      endTime: syncedLines[0].time,
+      isInstrumental: true,
+      text: '•••'
+    });
+  }
+
+  for (let i = 0; i < syncedLines.length; i++) {
+    const cur = syncedLines[i];
+    const next = syncedLines[i + 1];
+    const endTime = next ? next.time : (cur.time + 5500);
+
+    const parsed = parseLyricLineText(cur.text);
+    processed.push({
+      ...cur,
+      endTime,
+      parsed,
+      isInstrumental: false
+    });
+
+    // Check instrumental interlude between verses (gap >= 7.5 seconds)
+    if (next && (next.time - cur.time) >= 7500) {
+      const vocalDuration = Math.min(4500, Math.max(2500, (next.time - cur.time) - 3000));
+      const interludeStart = cur.time + vocalDuration;
+      processed.push({
+        time: interludeStart,
+        endTime: next.time,
+        isInstrumental: true,
+        text: '•••'
+      });
+    }
+  }
+
+  return processed;
+}
+
+// Render line words with smooth karaoke wave animation when active
+function LyricWords({ text, line, currentTimeMs, isActive }) {
+  if (!text) return null;
+  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
+  if (words.length === 0) return null;
+
+  if (!isActive) {
+    return <span>{text}</span>;
+  }
+
+  const lineDuration = Math.max(1200, Math.min(5500, line.endTime - line.time));
+  const elapsed = Math.max(0, currentTimeMs - line.time);
+  const progress = Math.min(1, elapsed / lineDuration);
+
   return (
-    <div
-      className={`cider-instrumental-break ${isIntro ? 'is-intro' : 'is-interlude'} ${isAnticipating ? 'anticipating' : ''}`}
-      onClick={onClick}
-      title={onClick ? "Cliquer pour passer au chant" : undefined}
-    >
-      <div className={`cider-instrumental-pill ${isAnticipating ? 'anticipating' : ''}`}>
-        <span className="cider-dot dot-1" />
-        <span className="cider-dot dot-2" />
-        <span className="cider-dot dot-3" />
-      </div>
-      <div className="cider-instrumental-label">
-        <span className="label-pulse" />
-        <span>{isAnticipating ? 'Ça commence...' : (label || 'Passage instrumental')}</span>
-      </div>
-    </div>
+    <>
+      {words.map((word, k) => {
+        const wordStart = k / words.length;
+        const wordEnd = (k + 1) / words.length;
+        let wordState = 'word-waiting';
+        if (progress >= wordEnd) {
+          wordState = 'word-sung';
+        } else if (progress >= wordStart) {
+          wordState = 'word-singing';
+        }
+        return (
+          <span key={k} className={`lyrics-word ${wordState}`}>
+            {word}{' '}
+          </span>
+        );
+      })}
+    </>
   );
 }
 
@@ -59,46 +137,26 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const userScrollTimeoutRef = useRef(null);
 
-  // 1. Check intro instrumental (before line 0 starts)
-  const firstLineTime = lyrics?.synced?.[0]?.time ?? 0;
-  const isIntro = Boolean(lyrics?.synced?.length > 0 && currentTimeMs < firstLineTime);
-  const introRemaining = Math.max(0, firstLineTime - currentTimeMs);
-  const isIntroAnticipating = isIntro && introRemaining <= 2500;
+  // Stable pre-processed lines list
+  const lines = useMemo(() => {
+    return prepareLyricsLines(lyrics?.synced);
+  }, [lyrics]);
 
-  // 2. Identify active line
-  let activeIndex = -1;
-  if (!isIntro && lyrics?.synced?.length > 0) {
-    for (let i = 0; i < lyrics.synced.length; i++) {
-      if (lyrics.synced[i].time <= currentTimeMs) {
-        activeIndex = i;
+  // Find index of currently active lyric line
+  const activeIndex = useMemo(() => {
+    if (!lines || lines.length === 0) return -1;
+    let idx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].time <= currentTimeMs) {
+        idx = i;
       } else {
         break;
       }
     }
-  }
+    return idx;
+  }, [lines, currentTimeMs]);
 
-  // 3. Instrumental Interlude detection (gap between verses >= 6500ms)
-  let isInterlude = false;
-  let interludeNextIndex = -1;
-  let isInterludeAnticipating = false;
-
-  if (activeIndex >= 0 && activeIndex < lyrics.synced.length - 1) {
-    const curTime = lyrics.synced[activeIndex].time;
-    const nextTime = lyrics.synced[activeIndex + 1].time;
-    const gap = nextTime - curTime;
-
-    if (gap >= 6500) {
-      const vocalDuration = Math.min(4500, Math.max(2800, gap - 2800));
-      const interludeStart = curTime + vocalDuration;
-      if (currentTimeMs >= interludeStart && currentTimeMs < nextTime) {
-        isInterlude = true;
-        interludeNextIndex = activeIndex + 1;
-        isInterludeAnticipating = (nextTime - currentTimeMs) <= 2500;
-      }
-    }
-  }
-
-  // Smooth centering active line / instrumental break at ~38% viewport height (golden ratio)
+  // Smooth spring auto-scroll centering active line at ~38% viewport height (golden ratio)
   const scrollToActive = useCallback((smooth = true) => {
     if (!containerRef.current || !activeLineRef.current) return;
     const container = containerRef.current;
@@ -112,12 +170,12 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
     });
   }, []);
 
-  // When active index, intro state, or interlude changes, smoothly center
+  // Center active line whenever activeIndex changes
   useEffect(() => {
-    if (!isUserScrolling) {
+    if (!isUserScrolling && activeIndex >= 0) {
       scrollToActive(true);
     }
-  }, [activeIndex, isIntro, isInterlude, isUserScrolling, scrollToActive]);
+  }, [activeIndex, isUserScrolling, scrollToActive]);
 
   // Only detach auto-sync when the user physically touches or wheels the list
   const handleUserInteraction = () => {
@@ -165,7 +223,9 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
   }
 
   // Synced lyrics view (Cider dynamic kinetic blur effect)
-  if (lyrics.synced && lyrics.synced.length > 0) {
+  if (lines && lines.length > 0) {
+    const isIntroActive = activeIndex === 0 && lines[0].isInstrumental;
+
     return (
       <div
         className="lyrics-container"
@@ -183,73 +243,78 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
 
         <div className="lyrics-padding-top" />
 
-        {/* Intro Instrumental Block */}
-        {isIntro && (
-          <div ref={activeLineRef} className="cider-instrumental-wrapper">
-            <CiderInstrumentalBreak
-              isIntro={true}
-              isAnticipating={isIntroAnticipating}
-              label="Introduction instrumentale"
-              onClick={() => onSeek && onSeek(Math.max(0, firstLineTime - 1200))}
-            />
-          </div>
-        )}
+        {lines.map((line, i) => {
+          const isPast = i < activeIndex;
+          const isActive = i === activeIndex;
+          const isNext = i === activeIndex + 1;
+          const isFuture = i > activeIndex;
 
-        {lyrics.synced.map((line, i) => {
           let lineClass = 'lyrics-line';
-          if (isIntro) {
-            if (i === 0) {
-              lineClass += isIntroAnticipating ? ' lyrics-intro-anticipate' : ' lyrics-intro-first';
-            } else {
-              lineClass += ' lyrics-intro-future';
-            }
-          } else if (isInterlude) {
-            if (i <= activeIndex) {
-              lineClass += ' lyrics-past';
-            } else if (i === interludeNextIndex) {
-              lineClass += isInterludeAnticipating ? ' lyrics-next-anticipate' : ' lyrics-future lyrics-interlude-next';
-            } else {
-              lineClass += ' lyrics-future';
-            }
-          } else {
-            if (i === activeIndex) {
-              lineClass += ' lyrics-active';
-            } else if (i === activeIndex + 1) {
-              lineClass += ' lyrics-next';
-            } else if (i > activeIndex + 1) {
-              lineClass += ' lyrics-future';
-            } else if (i === activeIndex - 1) {
-              lineClass += ' lyrics-prev';
-            } else {
-              lineClass += ' lyrics-past';
-            }
+          if (line.isInstrumental) {
+            lineClass += ' lyrics-instrumental-line';
+          }
+          if (isActive) lineClass += ' lyrics-active';
+          else if (isNext) lineClass += ' lyrics-next';
+          else if (isPast) lineClass += ' lyrics-past';
+          else if (isFuture) lineClass += ' lyrics-future';
+
+          // When intro instrumental is playing, softly frost all following lines
+          if (isIntroActive && i > 0) {
+            lineClass += ' lyrics-intro-frosted';
           }
 
-          const isLineActiveTarget = !isIntro && !isInterlude && (i === activeIndex);
-          const showInterludeAfterThis = isInterlude && (i === activeIndex);
+          if (line.isInstrumental) {
+            return (
+              <div
+                key={`inst-${line.time}`}
+                ref={isActive ? activeLineRef : null}
+                className={lineClass}
+                onClick={() => onSeek && onSeek(Math.max(0, line.endTime - 1000))}
+                title="Cliquer pour avancer vers le chant"
+              >
+                <div className="cider-dots-container">
+                  <span className="cider-dot dot-1" />
+                  <span className="cider-dot dot-2" />
+                  <span className="cider-dot dot-3" />
+                </div>
+              </div>
+            );
+          }
+
+          const { isOnlyBacking, main, backing } = line.parsed || { main: line.text, backing: [] };
 
           return (
-            <div key={i} className="lyrics-item-group">
-              <div
-                ref={isLineActiveTarget ? activeLineRef : null}
-                className={lineClass}
-                onClick={() => onSeek && onSeek(line.time)}
-                title="Cliquer pour écouter à partir d'ici"
-              >
-                <span className="lyrics-seek-hint">{formatTime(line.time)}</span>
-                <span className="lyrics-text">{line.text}</span>
+            <div
+              key={`line-${line.time}`}
+              ref={isActive ? activeLineRef : null}
+              className={lineClass}
+              onClick={() => onSeek && onSeek(line.time)}
+              title="Cliquer pour écouter à partir d'ici"
+            >
+              <span className="lyrics-seek-hint">{formatTime(line.time)}</span>
+              <div className="lyrics-text-wrapper">
+                {isOnlyBacking ? (
+                  <span className="lyrics-backing-solo">({backing[0]})</span>
+                ) : (
+                  <>
+                    <div className="lyrics-main-line">
+                      <LyricWords
+                        text={main}
+                        line={line}
+                        currentTimeMs={currentTimeMs}
+                        isActive={isActive}
+                      />
+                    </div>
+                    {backing && backing.length > 0 && (
+                      <div className="lyrics-backing-sub">
+                        {backing.map((b, bIdx) => (
+                          <span key={bIdx} className="backing-pill">({b})</span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
-
-              {showInterludeAfterThis && (
-                <div ref={activeLineRef} className="cider-instrumental-wrapper">
-                  <CiderInstrumentalBreak
-                    isIntro={false}
-                    isAnticipating={isInterludeAnticipating}
-                    label="Passage instrumental"
-                    onClick={() => onSeek && onSeek(Math.max(0, lyrics.synced[i + 1].time - 1200))}
-                  />
-                </div>
-              )}
             </div>
           );
         })}
@@ -257,7 +322,7 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading, artworkUrl }) {
         <div className="lyrics-padding-bottom" />
 
         {/* Floating Resync Pill button when manually scrolled */}
-        {isUserScrolling && (
+        {isUserScrolling && activeIndex >= 0 && (
           <button
             className="cider-resync-pill"
             onClick={handleManualResync}
@@ -297,8 +362,31 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   const [lastTrackUrl, setLastTrackUrl] = useState(currentTrack?.url);
   const [animateCover, setAnimateCover] = useState(false);
 
-  // Sync Offset (Fine-tuning in milliseconds)
+  // Sync Offset (Fine-tuning in milliseconds, saved per track)
   const [syncOffset, setSyncOffset] = useState(0);
+
+  useEffect(() => {
+    if (!currentTrack?.url && !currentTrack?.title) return;
+    const key = `foxy_offset_${currentTrack.title || currentTrack.url}`;
+    const saved = localStorage.getItem(key);
+    if (saved !== null) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed)) setSyncOffset(parsed);
+    } else {
+      setSyncOffset(0);
+    }
+  }, [currentTrack?.url, currentTrack?.title]);
+
+  const updateSyncOffset = (updater) => {
+    setSyncOffset(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (currentTrack?.url || currentTrack?.title) {
+        const key = `foxy_offset_${currentTrack.title || currentTrack.url}`;
+        localStorage.setItem(key, String(next));
+      }
+      return next;
+    });
+  };
 
   // Lyrics state
   const [showLyrics, setShowLyrics] = useState(false);
@@ -369,7 +457,6 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
   if (currentTrack?.url !== lastTrackUrl) {
     setLastTrackUrl(currentTrack?.url);
     setAnimateCover(true);
-    setSyncOffset(0);
     clockRef.current.basePos = serverPosition || 0;
     clockRef.current.baseTimestamp = performance.now();
     setLocalProgress(serverPosition || 0);
@@ -489,15 +576,21 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
 
   const handlePauseResume = async () => {
     if (!currentTrack) return;
-    const action = isPlaying ? 'pause' : 'resume';
+    const nextPlaying = !isPlaying;
+    setQueueState(prev => ({ ...prev, isPlaying: nextPlaying }));
+    clockRef.current.isPlaying = nextPlaying;
+    const action = nextPlaying ? 'resume' : 'pause';
     try {
       const res = await fetch(`${API_URL}/api/guilds/${guildId}/${action}`, { method: 'POST' });
       const data = await res.json();
-      if (data.success) {
+      if (data && typeof data.isPlaying === 'boolean') {
         setQueueState(prev => ({ ...prev, isPlaying: data.isPlaying }));
+        clockRef.current.isPlaying = data.isPlaying;
       }
     } catch (e) {
       console.error(e);
+      setQueueState(prev => ({ ...prev, isPlaying: isPlaying }));
+      clockRef.current.isPlaying = isPlaying;
     }
   };
 
@@ -688,11 +781,19 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
             <div className="lyrics-top-controls">
               {/* Lyrics Offset Fine-tuning Widget */}
               {lyrics?.synced?.length > 0 && (
-                <div className="lyrics-offset-bar" title="Ajuster la synchronisation des paroles en temps réel">
+                <div className="lyrics-offset-bar" title="Ajuster la synchronisation des paroles en temps réel (sauvegardé pour ce morceau)">
                   <button
                     type="button"
                     className="offset-btn"
-                    onClick={() => setSyncOffset(o => o - 250)}
+                    onClick={() => updateSyncOffset(o => o - 1000)}
+                    title="Reculer les paroles (-1s)"
+                  >
+                    -1s
+                  </button>
+                  <button
+                    type="button"
+                    className="offset-btn"
+                    onClick={() => updateSyncOffset(o => o - 250)}
                     title="Reculer les paroles (-0.25s)"
                   >
                     -0.25s
@@ -703,16 +804,24 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
                   <button
                     type="button"
                     className="offset-btn"
-                    onClick={() => setSyncOffset(o => o + 250)}
+                    onClick={() => updateSyncOffset(o => o + 250)}
                     title="Avancer les paroles (+0.25s)"
                   >
                     +0.25s
+                  </button>
+                  <button
+                    type="button"
+                    className="offset-btn"
+                    onClick={() => updateSyncOffset(o => o + 1000)}
+                    title="Avancer les paroles (+1s)"
+                  >
+                    +1s
                   </button>
                   {syncOffset !== 0 && (
                     <button
                       type="button"
                       className="offset-btn offset-reset"
-                      onClick={() => setSyncOffset(0)}
+                      onClick={() => updateSyncOffset(0)}
                       title="Réinitialiser le décalage (0s)"
                     >
                       ↺
