@@ -522,11 +522,10 @@
   transform-origin: left center;
   will-change: transform, opacity, filter;
   transition:
-    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-    text-shadow 0.4s ease,
-    background-color 0.2s ease;
+    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+    text-shadow 0.45s ease;
 }
 
 /* Timestamp hint on line hover */
@@ -566,6 +565,47 @@
   letter-spacing: -0.025em;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Fluid Apple Music Sing / Cider word-by-word karaoke illumination */
+.lyrics-words-wrapper {
+  display: inline;
+}
+
+.lyrics-word {
+  display: inline;
+  white-space: pre-wrap;
+  transition:
+    color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    text-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.35s ease;
+}
+
+.lyrics-word.word-waiting {
+  color: rgba(255, 255, 255, 0.32);
+  opacity: 0.42;
+  text-shadow: none;
+}
+
+.lyrics-word.word-singing {
+  color: #ffffff;
+  opacity: 1;
+  text-shadow:
+    0 0 16px rgba(255, 255, 255, 0.95),
+    0 0 32px rgba(255, 125, 45, 0.7);
+}
+
+.lyrics-word.word-sung {
+  color: #ffffff;
+  opacity: 0.95;
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.4),
+    0 0 20px rgba(255, 125, 45, 0.25);
+}
+
+.word-space {
+  display: inline;
+  user-select: none;
 }
 
 /* Secondary Backing Vocals (parentheses: e.g. "(Hee-hee)") */
@@ -608,51 +648,56 @@
 .lyrics-line.lyrics-active {
   opacity: 1 !important;
   filter: blur(0px) !important;
-  transform: scale(1.05) translateZ(0) !important;
+  transform: scale(1.04) translateZ(0) !important;
   cursor: default;
   text-shadow:
-    0 0 22px rgba(255, 255, 255, 0.75),
+    0 0 24px rgba(255, 255, 255, 0.75),
     0 0 45px rgba(255, 120, 50, 0.45) !important;
   background: transparent !important;
-}
-
-.lyrics-line.lyrics-active.lyrics-settled {
-  transform: scale(1.02) translateZ(0) !important;
-  opacity: 0.88 !important;
-  text-shadow:
-    0 0 14px rgba(255, 255, 255, 0.5),
-    0 0 28px rgba(255, 120, 50, 0.25) !important;
 }
 
 .lyrics-line.lyrics-active .lyrics-seek-hint {
   display: none;
 }
 
-.lyrics-line.lyrics-next {
-  opacity: 0.65;
-  filter: blur(1.5px);
-  transform: scale(0.985) translateZ(0);
-}
-
-.lyrics-line.lyrics-future {
-  opacity: 0.25;
-  filter: blur(3.5px);
-  transform: scale(0.94) translateZ(0);
+/* Past lines fade away smoothly (focus stays on the singing) */
+.lyrics-line.lyrics-prev {
+  opacity: 0.16;
+  filter: blur(3px);
+  transform: scale(0.95) translateZ(0);
   text-shadow: none;
-}
-
-.lyrics-line.lyrics-intro-frosted {
-  opacity: 0.18 !important;
-  filter: blur(5px) !important;
-  transform: scale(0.92) translateZ(0) !important;
-  text-shadow: none !important;
 }
 
 .lyrics-line.lyrics-past {
-  opacity: 0.32;
-  filter: blur(2px);
-  transform: scale(0.96) translateZ(0);
+  opacity: 0.05;
+  filter: blur(5px);
+  transform: scale(0.92) translateZ(0);
   text-shadow: none;
+  pointer-events: none;
+}
+
+/* Upcoming lines: subtle whisper ahead */
+.lyrics-line.lyrics-next {
+  opacity: 0.35;
+  filter: blur(2px);
+  transform: scale(0.97) translateZ(0);
+  text-shadow: none;
+}
+
+.lyrics-line.lyrics-future {
+  opacity: 0.10;
+  filter: blur(4.5px);
+  transform: scale(0.93) translateZ(0);
+  text-shadow: none;
+}
+
+/* Intro instrumental: heavily frost future lines so focus is 100% on intro */
+.lyrics-line.lyrics-intro-frosted {
+  opacity: 0.04 !important;
+  filter: blur(8px) !important;
+  transform: scale(0.91) translateZ(0) !important;
+  text-shadow: none !important;
+  pointer-events: none;
 }
 
 .lyrics-line.lyrics-blank {
@@ -674,13 +719,13 @@
 }
 
 /* ================================================
-   CIDER INSTRUMENTAL BREAK — Minimal 3-Dot Rhythmic Pulse
+   CIDER INSTRUMENTAL BREAK — Discreet & Minimal Pulse
    ================================================ */
 .lyrics-instrumental-line {
   display: flex;
   align-items: center;
-  padding: 12px 14px;
-  margin: 6px 0;
+  padding: 8px 14px;
+  margin: 4px 0;
   cursor: pointer;
   background: transparent !important;
 }
@@ -688,34 +733,30 @@
 .cider-dots-container {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 22px;
+  gap: 8px;
+  padding: 6px 14px;
   border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.25),
-    0 0 20px rgba(255, 120, 50, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .lyrics-line.lyrics-active .cider-dots-container {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.32);
-  box-shadow:
-    0 8px 30px rgba(255, 120, 50, 0.35),
-    0 0 25px rgba(255, 255, 255, 0.4);
-  transform: scale(1.06);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 20px rgba(255, 120, 50, 0.2);
+  transform: scale(1.02);
 }
 
 .cider-dot {
-  width: 10px;
-  height: 10px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #ffffff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 18px rgba(255, 120, 50, 0.5);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
   animation: ciderDotWave 1.4s infinite ease-in-out;
 }
 
@@ -733,15 +774,13 @@
 
 @keyframes ciderDotWave {
   0%, 100% {
-    transform: translateY(0) scale(0.8);
-    opacity: 0.35;
-    filter: blur(0.5px);
+    transform: translateY(0) scale(0.85);
+    opacity: 0.4;
   }
   50% {
-    transform: translateY(-6px) scale(1.35);
+    transform: translateY(-4px) scale(1.2);
     opacity: 1;
-    filter: blur(0px);
-    box-shadow: 0 0 16px #ffffff, 0 0 28px rgba(255, 130, 60, 0.9);
+    box-shadow: 0 0 12px #ffffff, 0 0 20px rgba(255, 120, 50, 0.7);
   }
 }
 

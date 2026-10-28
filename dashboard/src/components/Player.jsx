@@ -89,8 +89,8 @@ function prepareLyricsLines(syncedLines) {
       isInstrumental: false
     });
 
-    // Check instrumental interlude between verses (gap >= 4500ms and interlude pause >= 1800ms)
-    if (next && gap >= 4500 && (gap - vocalDuration) >= 1800) {
+    // Check instrumental interlude between sections (gap >= 9 seconds and pause >= 4 seconds)
+    if (next && gap >= 9000 && (gap - vocalDuration) >= 4000) {
       processed.push({
         time: vocalEndTime,
         endTime: next.time,
@@ -102,6 +102,54 @@ function prepareLyricsLines(syncedLines) {
   }
 
   return processed;
+}
+
+// Render line words with smooth karaoke wave animation when active (zero-layout shift, guaranteed spacing)
+function LyricWords({ text, line, currentTimeMs, isActive }) {
+  if (!text) return null;
+  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
+  if (words.length === 0) return null;
+
+  if (!isActive) {
+    return <span className="lyrics-text-plain">{text}</span>;
+  }
+
+  // Weight each word by character count so syllables get natural singing duration
+  const charWeights = useMemo(() => {
+    return words.map(w => Math.max(2, w.replace(/[^a-zA-Z0-9\u00C0-\u017F]/g, '').length));
+  }, [words]);
+
+  const totalWeight = useMemo(() => charWeights.reduce((a, b) => a + b, 0), [charWeights]);
+
+  // Vocal duration for this line
+  const vocalDuration = Math.max(1600, Math.min(6500, line.vocalEndTime ? (line.vocalEndTime - line.time) : (line.endTime - line.time)));
+  const elapsed = Math.max(0, currentTimeMs - line.time);
+  const progress = Math.min(1, elapsed / vocalDuration);
+
+  let cumWeight = 0;
+  return (
+    <span className="lyrics-words-wrapper">
+      {words.map((word, k) => {
+        const startFraction = cumWeight / totalWeight;
+        cumWeight += charWeights[k];
+        const endFraction = cumWeight / totalWeight;
+
+        let status = 'word-waiting';
+        if (progress >= endFraction) {
+          status = 'word-sung';
+        } else if (progress >= startFraction) {
+          status = 'word-singing';
+        }
+
+        return (
+          <span key={k} className={`lyrics-word ${status}`}>
+            {word}
+            {k < words.length - 1 && <span className="word-space">&nbsp;</span>}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 // Lyrics display component (Cider / Apple Music Sing visual aesthetics & kinetics)
@@ -130,18 +178,36 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
     return idx;
   }, [lines, currentTimeMs]);
 
-  // Smooth spring auto-scroll centering active line at ~38% viewport height (golden ratio)
+  // Smooth 60fps cubic easing auto-scroll centering active line at ~36% viewport height
   const scrollToActive = useCallback((smooth = true) => {
     if (!containerRef.current || !activeLineRef.current) return;
     const container = containerRef.current;
     const activeEl = activeLineRef.current;
     const containerHeight = container.clientHeight;
-    const targetScroll = activeEl.offsetTop - (containerHeight * 0.38);
+    const targetScroll = activeEl.offsetTop - (containerHeight * 0.36);
 
-    container.scrollTo({
-      top: Math.max(0, targetScroll),
-      behavior: smooth ? 'smooth' : 'auto',
-    });
+    if (!smooth) {
+      container.scrollTop = Math.max(0, targetScroll);
+      return;
+    }
+
+    const startScroll = container.scrollTop;
+    const distance = Math.max(0, targetScroll) - startScroll;
+    if (Math.abs(distance) < 2) return;
+
+    const startTime = performance.now();
+    const duration = 650;
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      container.scrollTop = startScroll + distance * easeOutCubic(progress);
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      }
+    };
+    requestAnimationFrame(step);
   }, []);
 
   // Center active line whenever activeIndex changes
@@ -202,38 +268,20 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
         {lines.map((line, i) => {
           const isPast = i < activeIndex;
           const isActive = i === activeIndex;
+          const isPrev = i === activeIndex - 1;
+          const isOlderPast = i < activeIndex - 1;
           const isNext = i === activeIndex + 1;
-          const isFuture = i > activeIndex;
+          const isFuture = i > activeIndex + 1;
 
-          let lineClass = 'lyrics-line';
+          // Past instrumental breaks vanish completely from the screen
           if (line.isInstrumental) {
-            lineClass += ' lyrics-instrumental-line';
-          }
-          if (isActive) {
-            lineClass += ' lyrics-active';
-            if (line.vocalEndTime && currentTimeMs > line.vocalEndTime) {
-              lineClass += ' lyrics-settled';
-            }
-          } else if (isNext) {
-            lineClass += ' lyrics-next';
-          } else if (isPast) {
-            lineClass += ' lyrics-past';
-          } else if (isFuture) {
-            lineClass += ' lyrics-future';
-          }
-
-          // When intro instrumental is playing, softly frost all following lines
-          if (isIntroActive && i > 0) {
-            lineClass += ' lyrics-intro-frosted';
-          }
-
-          if (line.isInstrumental) {
+            if (isPast) return null;
             return (
               <div
                 key={`inst-${line.time}`}
                 ref={isActive ? activeLineRef : null}
-                className={lineClass}
-                onClick={() => onSeek && onSeek(Math.max(0, line.endTime - 800))}
+                className={`lyrics-line lyrics-instrumental-line ${isActive ? 'lyrics-active' : 'lyrics-future'}`}
+                onClick={() => onSeek && onSeek(Math.max(0, line.endTime - 600))}
                 title="Cliquer pour avancer vers le chant"
               >
                 <div className="cider-dots-container">
@@ -243,6 +291,24 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
                 </div>
               </div>
             );
+          }
+
+          let lineClass = 'lyrics-line';
+          if (isActive) {
+            lineClass += ' lyrics-active';
+          } else if (isNext) {
+            lineClass += ' lyrics-next';
+          } else if (isFuture) {
+            lineClass += ' lyrics-future';
+          } else if (isPrev) {
+            lineClass += ' lyrics-prev';
+          } else if (isOlderPast) {
+            lineClass += ' lyrics-past';
+          }
+
+          // When intro instrumental is playing, softly frost all following lines
+          if (isIntroActive && i > 0) {
+            lineClass += ' lyrics-intro-frosted';
           }
 
           const { isOnlyBacking, main, backing } = line.parsed || { main: line.text, backing: [] };
@@ -262,7 +328,12 @@ function LyricsView({ lyrics, currentTimeMs, onSeek, isLoading }) {
                 ) : (
                   <>
                     <div className="lyrics-main-line">
-                      {main}
+                      <LyricWords
+                        text={main}
+                        line={line}
+                        currentTimeMs={currentTimeMs}
+                        isActive={isActive}
+                      />
                     </div>
                     {backing && backing.length > 0 && (
                       <div className="lyrics-backing-sub">
