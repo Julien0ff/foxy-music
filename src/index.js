@@ -25,12 +25,6 @@ const Nodes = [
         secure: true
     },
     {
-        name: 'Serenetia-Combined',
-        url: 'lavalink.serenetia.com:443',
-        auth: 'https://dsc.gg/ajidevserver',
-        secure: true
-    },
-    {
         name: 'Kasawa',
         url: 'lava2.kasawa.pro:2334',
         auth: 'youshallnotpass',
