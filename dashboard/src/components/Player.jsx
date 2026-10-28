@@ -362,11 +362,6 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
     }
   }, [showLyrics, currentTrack, guildId, lyricsTrackUrl]);
 
-  // Notify parent component of lyrics mode toggle (synced in real-time with exit animation)
-  useEffect(() => {
-    if (onLyricsToggle) onLyricsToggle(showLyrics && !isClosingLyrics);
-  }, [showLyrics, isClosingLyrics, onLyricsToggle]);
-
   // Clean up exit timer on unmount
   useEffect(() => {
     return () => {
@@ -462,11 +457,13 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
       closingTimerRef.current = setTimeout(() => {
         setShowLyrics(false);
         setIsClosingLyrics(false);
+        if (onLyricsToggle) onLyricsToggle(false);
       }, 380);
     } else if (!showLyrics) {
       if (closingTimerRef.current) clearTimeout(closingTimerRef.current);
       setIsClosingLyrics(false);
       setShowLyrics(true);
+      if (onLyricsToggle) onLyricsToggle(true);
     }
   };
 

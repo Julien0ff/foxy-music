@@ -455,15 +455,12 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 
 .search-wrapper {
   width: 100%;
-  max-width: 480px;
+  max-width: 500px;
   flex-shrink: 0;
   margin-bottom: 16px;
   position: relative;
-  z-index: 50;
-  max-height: 80px;
-  overflow: hidden;
+  z-index: 100;
   transition:
-    max-height 0.38s cubic-bezier(0.16, 1, 0.3, 1),
     opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     margin-bottom 0.38s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
@@ -471,6 +468,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 
 .search-wrapper.search-hidden {
   max-height: 0;
+  overflow: hidden;
   opacity: 0;
   margin-bottom: 0;
   transform: translateY(-14px);
@@ -550,6 +548,10 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   border-radius: 0;
   padding: 0;
   backdrop-filter: none;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
@@ -560,6 +562,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Auto-join banner */
@@ -578,6 +581,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
 .auto-join-banner:hover {
@@ -612,6 +616,39 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.channels-list::-webkit-scrollbar,
+.left-column::-webkit-scrollbar {
+  width: 4px;
+}
+
+.channels-list::-webkit-scrollbar-track,
+.left-column::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.channels-list::-webkit-scrollbar-thumb,
+.left-column::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+  transition: background 0.2s ease;
+}
+
+.channels-list::-webkit-scrollbar-thumb:hover,
+.left-column::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.channels-list,
+.left-column {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
 
 .channel-item {

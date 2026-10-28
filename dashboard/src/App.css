@@ -521,11 +521,10 @@
   transform-origin: left center;
   will-change: transform, opacity, filter;
   transition:
-    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 0.42s cubic-bezier(0.16, 1, 0.3, 1),
-    text-shadow 0.42s cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 0.25s ease;
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+    text-shadow 0.32s ease,
+    background-color 0.2s ease;
 }
 
 /* Timestamp hint on line hover */
@@ -556,34 +555,30 @@
 
 /* Future lines: gentle ambient softness in distance */
 .lyrics-line.lyrics-future {
-  opacity: 0.20;
-  transform: scale(0.95) translateZ(0);
-  filter: blur(1.2px);
+  opacity: 0.25;
+  transform: scale(0.96) translateZ(0);
   text-shadow: none;
 }
 
 /* Upcoming line right after active: anticipation state */
 .lyrics-line.lyrics-active + .lyrics-line {
-  opacity: 0.44 !important;
-  transform: scale(0.985) translateZ(0) !important;
-  filter: blur(0.4px) !important;
+  opacity: 0.52 !important;
+  transform: scale(0.99) translateZ(0) !important;
 }
 
-/* Past lines: softly dimmed, subtle optical softness */
+/* Past lines: softly dimmed */
 .lyrics-line.lyrics-past {
-  opacity: 0.35;
-  transform: scale(0.965) translateZ(0);
-  filter: blur(0.4px);
+  opacity: 0.38;
+  transform: scale(0.97) translateZ(0);
   text-shadow: none;
 }
 
 /* Active Line (Cider Star Karaoke Sing Highlight) — Pure radiant glow */
 .lyrics-line.lyrics-active {
   opacity: 1 !important;
-  transform: scale(1.055) translateZ(0) !important;
-  filter: blur(0px) !important;
+  transform: scale(1.045) translateZ(0) !important;
   cursor: default;
-  text-shadow: 0 0 24px rgba(255, 255, 255, 0.5), 0 0 48px rgba(255, 120, 50, 0.3);
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.6), 0 0 40px rgba(255, 120, 50, 0.35);
   background: transparent !important;
 }
 
@@ -1005,6 +1000,8 @@
   max-width: 500px; /* Longer search bar */
   margin-left: auto;
   margin-right: auto;
+  position: relative;
+  z-index: 100;
 }
 
 .search-form {
@@ -1036,6 +1033,8 @@
 .search-spinner {
   animation: spin 1s linear infinite;
   color: var(--text-muted);
+  transform-origin: 50% 50%;
+  display: block;
 }
 
 @keyframes spin {
@@ -1058,13 +1057,28 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
   padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.search-upload-btn svg {
+  display: block;
+  margin: auto;
+  transform-origin: 50% 50%;
+}
+
+.search-upload-btn .search-spinner {
+  display: block;
+  margin: auto;
+  transform-origin: 50% 50%;
+  animation: spin 1s linear infinite;
 }
 
 .search-upload-btn:hover:not(:disabled) {
