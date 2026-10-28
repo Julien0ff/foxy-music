@@ -490,7 +490,7 @@ export default function Player({ guildId, currentTrack, isPlaying, serverPositio
 
         <div className="track-info">
           <h2 className="track-title">{currentTrack ? currentTrack.title : 'Aucune musique'}</h2>
-          <p className="track-artist">{currentTrack ? 'Foxy Music Bot' : 'En attente...'}</p>
+          <p className="track-artist">{currentTrack ? (currentTrack.artist || 'Foxy Music Bot') : 'En attente...'}</p>
         </div>
 
         <div className="progress-section" style={{ width: '100%', maxWidth: 'min(100%, 45vh)', marginTop: '12px' }}>

@@ -650,5 +650,6 @@ module.exports = {
         }
     },
     playNext: playNext,
-    handleLoadFailed: handleLoadFailed
+    handleLoadFailed: handleLoadFailed,
+    getQueue: getQueue
 };

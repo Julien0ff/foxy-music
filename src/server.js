@@ -48,6 +48,40 @@ function startServer(client) {
     app.use(cors());
     app.use(express.json({ limit: '10mb' }));
 
+    // Multer configuration for file uploads (play-file)
+    const multer = require('multer');
+    const uploadsDir = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const storage = multer.diskStorage({
+        destination: function (req, file, cb) {
+            cb(null, uploadsDir);
+        },
+        filename: function (req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const ext = path.extname(file.originalname);
+            cb(null, `${uniqueSuffix}${ext}`);
+        }
+    });
+
+    const upload = multer({
+        storage: storage,
+        limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+        fileFilter: (req, file, cb) => {
+            const supported = ['.mp3', '.m4a', '.wav', '.flac', '.ogg', '.oga', '.aac', '.opus', '.webm', '.wma'];
+            const ext = path.extname(file.originalname || '').toLowerCase();
+            if (supported.includes(ext) || (file.mimetype && file.mimetype.startsWith('audio/'))) {
+                cb(null, true);
+            } else {
+                cb(new Error('Format de fichier non supporté. Seuls les fichiers audio sont acceptés (.mp3, .m4a, .wav, .flac, .ogg, .aac).'));
+            }
+        }
+    });
+
+    app.use('/uploads', express.static(uploadsDir));
+
     // Helper: récupérer un node Lavalink connecté (en ligne)
     function getIdealNode(clientInstance) {
         if (!clientInstance?.shoukaku?.nodes) return null;
@@ -575,6 +609,212 @@ function startServer(client) {
         } catch (e) {
             console.error('Lavalink search error:', e);
             return res.status(500).json({ error: 'Search failed' });
+        }
+    });
+
+    app.post('/api/guilds/:id/play-file', (req, res, next) => {
+        upload.single('file')(req, res, (err) => {
+            if (err) {
+                console.error('[Multer Error]', err.message);
+                return res.status(400).json({ error: err.message || 'Erreur lors de l\'upload du fichier' });
+            }
+            next();
+        });
+    }, async (req, res) => {
+        const guildId = req.params.id;
+        if (!req.file) {
+            return res.status(400).json({ error: 'Aucun fichier fourni' });
+        }
+
+        const nodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
+        if (nodes.length === 0) {
+            return res.status(503).json({ error: 'Aucun serveur Lavalink disponible pour le moment' });
+        }
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) {
+            return res.status(404).json({ error: 'Serveur Discord non trouvé' });
+        }
+
+        if (!global.queues) global.queues = new Map();
+        let queue = global.queues.get(guildId);
+        if (!queue) {
+            queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: 100 };
+            global.queues.set(guildId, queue);
+        }
+
+        // Auto-connect to voice channel if not connected
+        if (!queue.player) {
+            let player = client.shoukaku.players.get(guildId);
+            if (player) {
+                queue.player = player;
+            } else {
+                const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
+                let targetChannel = voiceChannels.find(c => c.members.filter(m => !m.user.bot).size > 0);
+                if (!targetChannel) targetChannel = voiceChannels.first();
+
+                if (targetChannel) {
+                    try {
+                        player = await client.shoukaku.joinVoiceChannel({
+                            guildId: guildId,
+                            channelId: targetChannel.id,
+                            shardId: 0,
+                            deaf: true
+                        });
+                        queue.player = player;
+                        setupPlayerListeners(player, queue, guildId, client);
+                    } catch (err) {
+                        console.error('Failed to auto-connect voice channel for file play:', err);
+                    }
+                }
+            }
+        }
+
+        if (!queue.player) {
+            return res.status(400).json({ error: 'Le bot doit d\'abord être connecté à un salon vocal.' });
+        }
+
+        try {
+            let playableUrl = null;
+
+            // Strategy 1: Relay to Discord channel to get a globally accessible CDN URL (accessible by remote nodes like Nazha)
+            try {
+                const textChannel = guild.channels.cache.find(c => 
+                    c.isTextBased() && 
+                    !c.isThread() && 
+                    c.permissionsFor(guild.members.me)?.has(['ViewChannel', 'SendMessages', 'AttachFiles'])
+                );
+
+                if (textChannel) {
+                    const sent = await textChannel.send({
+                        content: `📁 **Fichier audio uploadé depuis le Dashboard** : \`${req.file.originalname}\``,
+                        files: [{
+                            attachment: req.file.path,
+                            name: req.file.originalname
+                        }]
+                    });
+                    const discordAttachment = sent.attachments.first();
+                    if (discordAttachment?.url) {
+                        playableUrl = discordAttachment.url;
+                        console.log('[PlayFile Web] Relayed to Discord CDN successfully:', playableUrl);
+                    }
+                }
+            } catch (discordErr) {
+                console.warn('[PlayFile Web] Discord relay failed, falling back to local server URL:', discordErr.message);
+            }
+
+            // Strategy 2: Fallback to Express public/local URL
+            if (!playableUrl) {
+                const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+                const host = req.headers['x-forwarded-host'] || req.get('host');
+                const baseUrl = process.env.PUBLIC_URL || `${protocol}://${host}`;
+                playableUrl = `${baseUrl}/uploads/${path.basename(req.file.path)}`;
+                console.log('[PlayFile Web] Using Express static URL:', playableUrl);
+            }
+
+            // Prioritize the player's own node
+            const playerNode = queue.player?.node;
+            const orderedNodes = playerNode
+                ? [playerNode, ...nodes.filter(n => n.name !== playerNode.name)]
+                : nodes;
+
+            let result = null;
+            let resolvedNode = null;
+            for (const node of orderedNodes) {
+                try {
+                    const res = await node.rest.resolve(playableUrl);
+                    if (res && res.loadType !== 'empty' && res.loadType !== 'error' && res.data) {
+                        result = res;
+                        resolvedNode = node;
+                        break;
+                    }
+                } catch (e) {
+                    console.log(`[PlayFile Web] Node ${node.name} failed to resolve:`, e.message);
+                }
+            }
+
+            if (!result || !result.data) {
+                return res.status(400).json({ error: 'Lavalink n\'a pas pu décoder ce fichier audio.' });
+            }
+
+            let trackToPlay = null;
+            if (result.loadType === 'track') {
+                trackToPlay = result.data;
+            } else if (result.loadType === 'search' && Array.isArray(result.data) && result.data.length > 0) {
+                trackToPlay = result.data[0];
+            } else if (result.loadType === 'playlist' && result.data.tracks?.length > 0) {
+                trackToPlay = result.data.tracks[0];
+            }
+
+            if (!trackToPlay) {
+                return res.status(400).json({ error: 'Aucun flux audio extrait du fichier.' });
+            }
+
+            // Format clean title
+            const rawName = req.file.originalname || 'Fichier audio';
+            const lastDot = rawName.lastIndexOf('.');
+            const baseName = lastDot > 0 ? rawName.substring(0, lastDot) : rawName;
+            const cleanTitle = baseName.replace(/[_]/g, ' ').trim();
+
+            const finalTitle = (trackToPlay.info?.title && 
+                                trackToPlay.info.title !== 'Unknown title' && 
+                                !trackToPlay.info.title.startsWith('http')) 
+                                ? trackToPlay.info.title 
+                                : cleanTitle;
+
+            const trackObj = {
+                title: finalTitle,
+                artist: (trackToPlay.info?.author && trackToPlay.info.author !== 'Unknown author')
+                    ? trackToPlay.info.author
+                    : 'Fichier Dashboard',
+                url: playableUrl,
+                encoded: trackToPlay.encoded,
+                duration: trackToPlay.info?.length || 0,
+                artworkUrl: trackToPlay.info?.artworkUrl || null,
+                nodeName: resolvedNode?.name,
+                isFile: true
+            };
+
+            queue.tracks.push(trackObj);
+
+            // If not playing, play next immediately
+            if (!queue.currentTrack) {
+                const toPlay = queue.tracks.shift();
+                queue.currentTrack = toPlay;
+
+                try {
+                    if (queue.player) {
+                        if (toPlay.encoded) {
+                            try {
+                                await queue.player.playTrack({ track: { encoded: toPlay.encoded } });
+                            } catch (encErr) {
+                                await queue.player.playTrack({ track: { identifier: toPlay.url } });
+                            }
+                        } else {
+                            await queue.player.playTrack({ track: { identifier: toPlay.url } });
+                        }
+                    }
+                } catch (e) {
+                    console.error('[PlayFile Web] Play Error:', e);
+                }
+            }
+
+            if (global.io) {
+                global.io.to(`queue_${guildId}`).emit('queue_update', {
+                    currentTrack: queue.currentTrack,
+                    tracks: queue.tracks,
+                    isPlaying: queue.player && !queue.player.paused,
+                    position: queue.player ? queue.player.position : 0,
+                    duration: queue.currentTrack ? queue.currentTrack.duration || 0 : 0,
+                    volume: queue.volume || 100,
+                    loop: queue.loop || false
+                });
+            }
+
+            return res.json({ success: true, track: trackObj });
+        } catch (err) {
+            console.error('[PlayFile Web API Error]', err);
+            return res.status(500).json({ error: 'Erreur lors du traitement du fichier: ' + err.message });
         }
     });
 
