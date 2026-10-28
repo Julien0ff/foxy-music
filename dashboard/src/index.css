@@ -423,7 +423,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 190px 1fr 280px;
+  grid-template-columns: 220px 1fr 280px;
   width: 100%;
   height: 100%;
   transition: grid-template-columns 0.42s cubic-bezier(0.16, 1, 0.3, 1);
@@ -434,11 +434,11 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 12px 10px 12px 16px;
-  overflow-y: auto;
-  overflow-x: hidden;
+  padding: 14px 10px 14px 16px;
+  overflow: hidden;
   border-right: 1px solid var(--surface-border);
   background: rgba(0,0,0,0.15);
+  box-sizing: border-box;
 }
 
 /* Center column: search + player */
@@ -606,16 +606,17 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  padding: 10px 4px 4px 4px;
+  padding: 12px 4px 4px 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0 !important;
 }
 
 .channels-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   overflow-y: auto;
   overflow-x: hidden;
   flex: 1;
@@ -623,30 +624,25 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   padding-right: 4px;
 }
 
-.channels-list::-webkit-scrollbar,
-.left-column::-webkit-scrollbar {
+.channels-list::-webkit-scrollbar {
   width: 4px;
 }
 
-.channels-list::-webkit-scrollbar-track,
-.left-column::-webkit-scrollbar-track {
+.channels-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.channels-list::-webkit-scrollbar-thumb,
-.left-column::-webkit-scrollbar-thumb {
+.channels-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 99px;
   transition: background 0.2s ease;
 }
 
-.channels-list::-webkit-scrollbar-thumb:hover,
-.left-column::-webkit-scrollbar-thumb:hover {
+.channels-list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.28);
 }
 
-.channels-list,
-.left-column {
+.channels-list {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
@@ -658,6 +654,12 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   border-left: 3px solid transparent;
   overflow: hidden;
+  flex-shrink: 0 !important;
+  min-height: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .channel-item.can-connect {
@@ -707,6 +709,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex-shrink: 0 !important;
 }
 
 .member-item {
@@ -714,6 +717,7 @@ h1, h2, h3, button, input, .track-title, .landing-content h1, .voice-channels h3
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex-shrink: 0 !important;
 }
 
 .member-avatar {

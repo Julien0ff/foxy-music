@@ -783,9 +783,9 @@
   filter: drop-shadow(0 0 6px var(--primary));
 }
 
-/* Grid adaptation when lyrics mode is active — 3 columns (190px 1fr 0px) for smooth CSS grid interpolation */
+/* Grid adaptation when lyrics mode is active — 3 columns (220px 1fr 0px) for smooth CSS grid interpolation */
 .lyrics-active-grid {
-  grid-template-columns: 190px 1fr 0px !important;
+  grid-template-columns: 220px 1fr 0px !important;
 }
 
 
