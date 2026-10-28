@@ -48,37 +48,144 @@ function startServer(client) {
     app.use(cors());
     app.use(express.json({ limit: '10mb' }));
 
-    // Multer configuration for file uploads (play-file)
-    const multer = require('multer');
+    // Configuration for file uploads (play-file) with graceful zero-dependency fallback
     const uploadsDir = path.join(__dirname, '../uploads');
     if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    const storage = multer.diskStorage({
-        destination: function (req, file, cb) {
-            cb(null, uploadsDir);
-        },
-        filename: function (req, file, cb) {
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            const ext = path.extname(file.originalname);
-            cb(null, `${uniqueSuffix}${ext}`);
-        }
-    });
-
-    const upload = multer({
-        storage: storage,
-        limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-        fileFilter: (req, file, cb) => {
-            const supported = ['.mp3', '.m4a', '.wav', '.flac', '.ogg', '.oga', '.aac', '.opus', '.webm', '.wma'];
-            const ext = path.extname(file.originalname || '').toLowerCase();
-            if (supported.includes(ext) || (file.mimetype && file.mimetype.startsWith('audio/'))) {
-                cb(null, true);
-            } else {
-                cb(new Error('Format de fichier non supporté. Seuls les fichiers audio sont acceptés (.mp3, .m4a, .wav, .flac, .ogg, .aac).'));
+    let multerUpload = null;
+    try {
+        const multer = require('multer');
+        const storage = multer.diskStorage({
+            destination: function (req, file, cb) {
+                cb(null, uploadsDir);
+            },
+            filename: function (req, file, cb) {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                const ext = path.extname(file.originalname);
+                cb(null, `${uniqueSuffix}${ext}`);
             }
+        });
+
+        const multerInstance = multer({
+            storage: storage,
+            limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+            fileFilter: (req, file, cb) => {
+                const supported = ['.mp3', '.m4a', '.wav', '.flac', '.ogg', '.oga', '.aac', '.opus', '.webm', '.wma'];
+                const ext = path.extname(file.originalname || '').toLowerCase();
+                if (supported.includes(ext) || (file.mimetype && file.mimetype.startsWith('audio/'))) {
+                    cb(null, true);
+                } else {
+                    cb(new Error('Format de fichier non supporté. Seuls les fichiers audio sont acceptés (.mp3, .m4a, .wav, .flac, .ogg, .aac).'));
+                }
+            }
+        });
+        multerUpload = multerInstance.single('file');
+        console.log('📦 Module Multer chargé avec succès pour les uploads audio.');
+    } catch (_) {
+        console.warn('ℹ️ Module "multer" non installé sur l\'hébergeur. Utilisation du parseur audio natif Node.js.');
+    }
+
+    // Pure Node.js multipart fallback parser (zero external dependency)
+    function nativeMultipartUpload(req, res, next) {
+        const contentType = req.headers['content-type'] || '';
+        if (!contentType.includes('multipart/form-data')) {
+            return next();
         }
-    });
+
+        const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+        if (!boundaryMatch) {
+            return res.status(400).json({ error: 'Boundary multipart manquant.' });
+        }
+        const boundary = (boundaryMatch[1] || boundaryMatch[2]).trim();
+
+        const chunks = [];
+        let totalSize = 0;
+        const maxSize = 50 * 1024 * 1024; // 50MB
+
+        req.on('data', chunk => {
+            totalSize += chunk.length;
+            if (totalSize > maxSize) {
+                req.destroy(new Error('Fichier trop volumineux (max 50 Mo)'));
+            } else {
+                chunks.push(chunk);
+            }
+        });
+
+        req.on('error', err => {
+            if (!res.headersSent) res.status(400).json({ error: err.message });
+        });
+
+        req.on('end', () => {
+            try {
+                const body = Buffer.concat(chunks);
+                const headerEnd = body.indexOf(Buffer.from('\r\n\r\n'));
+                if (headerEnd === -1) {
+                    return res.status(400).json({ error: 'Format multipart invalide.' });
+                }
+
+                const headerStr = body.slice(0, headerEnd).toString('utf8');
+                const filenameMatch = headerStr.match(/filename="([^"]+)"/i);
+                if (!filenameMatch) {
+                    return res.status(400).json({ error: 'Aucun fichier détecté dans la requête.' });
+                }
+
+                const originalname = filenameMatch[1];
+                const mimeMatch = headerStr.match(/Content-Type:\s*([^\r\n]+)/i);
+                const mimetype = mimeMatch ? mimeMatch[1].trim() : 'audio/mpeg';
+
+                const supportedExts = ['.mp3', '.m4a', '.wav', '.flac', '.ogg', '.oga', '.aac', '.opus', '.webm', '.wma'];
+                const ext = path.extname(originalname).toLowerCase();
+                if (!supportedExts.includes(ext) && !mimetype.startsWith('audio/')) {
+                    return res.status(400).json({ error: 'Format de fichier non supporté. Seuls les fichiers audio sont acceptés.' });
+                }
+
+                const dataStart = headerEnd + 4;
+                const closingBoundary = Buffer.from(`\r\n--${boundary}`);
+                const dataEnd = body.indexOf(closingBoundary, dataStart);
+                if (dataEnd === -1) {
+                    return res.status(400).json({ error: 'Fin de fichier non trouvée.' });
+                }
+
+                const fileData = body.slice(dataStart, dataEnd);
+                const uniqueFilename = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+                const filePath = path.join(uploadsDir, uniqueFilename);
+
+                fs.writeFileSync(filePath, fileData);
+
+                req.file = {
+                    fieldname: 'file',
+                    originalname: originalname,
+                    filename: uniqueFilename,
+                    path: filePath,
+                    size: fileData.length,
+                    mimetype: mimetype
+                };
+
+                next();
+            } catch (err) {
+                console.error('[Native Upload Parse Error]', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'Erreur lors de la lecture du fichier: ' + err.message });
+                }
+            }
+        });
+    }
+
+    const uploadFileMiddleware = (req, res, next) => {
+        if (multerUpload) {
+            multerUpload(req, res, (err) => {
+                if (err) {
+                    console.error('[Multer Error]', err.message);
+                    return res.status(400).json({ error: err.message || 'Erreur lors de l\'upload du fichier' });
+                }
+                next();
+            });
+        } else {
+            nativeMultipartUpload(req, res, next);
+        }
+    };
 
     app.use('/uploads', express.static(uploadsDir));
 
@@ -612,15 +719,7 @@ function startServer(client) {
         }
     });
 
-    app.post('/api/guilds/:id/play-file', (req, res, next) => {
-        upload.single('file')(req, res, (err) => {
-            if (err) {
-                console.error('[Multer Error]', err.message);
-                return res.status(400).json({ error: err.message || 'Erreur lors de l\'upload du fichier' });
-            }
-            next();
-        });
-    }, async (req, res) => {
+    app.post('/api/guilds/:id/play-file', uploadFileMiddleware, async (req, res) => {
         const guildId = req.params.id;
         if (!req.file) {
             return res.status(400).json({ error: 'Aucun fichier fourni' });
