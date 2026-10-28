@@ -19,12 +19,6 @@ const Nodes = [
         secure: true
     },
     {
-        name: 'Serenetia-SSL',
-        url: 'lavalinkv4.serenetia.com:443',
-        auth: 'https://dsc.gg/ajidevserver',
-        secure: true
-    },
-    {
         name: 'Kasawa',
         url: 'lava2.kasawa.pro:2334',
         auth: 'youshallnotpass',
