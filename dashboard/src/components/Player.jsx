@@ -107,19 +107,17 @@ function prepareLyricsLines(syncedLines) {
 // Render line words with smooth karaoke wave animation when active (zero-layout shift, guaranteed spacing)
 function LyricWords({ text, line, currentTimeMs, isActive }) {
   if (!text) return null;
-  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
-  if (words.length === 0) return null;
 
   if (!isActive) {
     return <span className="lyrics-text-plain">{text}</span>;
   }
 
-  // Weight each word by character count so syllables get natural singing duration
-  const charWeights = useMemo(() => {
-    return words.map(w => Math.max(2, w.replace(/[^a-zA-Z0-9\u00C0-\u017F]/g, '').length));
-  }, [words]);
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
 
-  const totalWeight = useMemo(() => charWeights.reduce((a, b) => a + b, 0), [charWeights]);
+  // Weight each word by character count so syllables get natural singing duration
+  const charWeights = words.map(w => Math.max(2, w.replace(/[^a-zA-Z0-9\u00C0-\u017F]/g, '').length));
+  const totalWeight = charWeights.reduce((a, b) => a + b, 0) || 1;
 
   // Vocal duration for this line
   const vocalDuration = Math.max(1600, Math.min(6500, line.vocalEndTime ? (line.vocalEndTime - line.time) : (line.endTime - line.time)));
