@@ -1,6 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const { updatePanel } = require('../utils/panelUpdater');
-const { getQueue, playNext, handleLoadFailed } = require('./play');
+const { getQueue, playNext, ensureVoiceConnection } = require('./play');
 
 const SUPPORTED_EXTENSIONS = ['.mp3', '.m4a', '.wav', '.flac', '.ogg', '.oga', '.aac', '.opus', '.webm', '.wma'];
 
@@ -55,80 +55,16 @@ module.exports = {
 
         const queue = getQueue(interaction.guild.id);
 
-        // Ensure player is connected
-        if (!queue.player) {
-            let player = interaction.client.shoukaku.players.get(interaction.guild.id);
-            if (player) {
-                queue.player = player;
-            } else {
-                try {
-                    try {
-                        await interaction.client.shoukaku.leaveVoiceChannel(interaction.guild.id);
-                    } catch (_) {}
-
-                    player = await interaction.client.shoukaku.joinVoiceChannel({
-                        guildId: interaction.guild.id,
-                        channelId: channel.id,
-                        shardId: 0,
-                        deaf: true
-                    });
-
-                    queue.player = player;
-
-                    player.on('start', () => {
-                        console.log(`[Player] Now streaming: ${queue.currentTrack?.title || 'Unknown Track'}`);
-                        updatePanel(interaction.client, interaction.guild.id);
-                    });
-
-                    player.on('end', (reason) => {
-                        console.log(`[Player] Track ended. Reason: ${reason.reason}`);
-                        if (reason.reason === 'REPLACED') return;
-                        if (reason.reason === 'loadFailed') {
-                            handleLoadFailed(interaction.guild.id, interaction.client, queue.currentTrack);
-                        } else {
-                            playNext(interaction.guild.id, interaction.client);
-                        }
-                    });
-
-                    player.on('exception', (exception) => {
-                        console.error('[Player Exception]', exception.exception?.message || exception.exception || exception);
-                        if (queue.currentTrack && !queue.currentTrack.isFallback) {
-                            handleLoadFailed(interaction.guild.id, interaction.client, queue.currentTrack);
-                        }
-                    });
-
-                    player.on('stuck', (stuck) => {
-                        console.warn('[Player Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
-                        playNext(interaction.guild.id, interaction.client);
-                    });
-
-                    player.on('error', (error) => {
-                        console.error('[Player Error]', error);
-                        playNext(interaction.guild.id, interaction.client);
-                    });
-
-                    player.on('update', async (packet) => {
-                        const rawPos = (packet?.state && typeof packet.state.position === 'number')
-                            ? packet.state.position
-                            : (typeof player.position === 'number' ? player.position : 0);
-                        if (global.io) {
-                            global.io.to(`queue_${interaction.guild.id}`).emit('player_position', {
-                                position: rawPos,
-                                isPlaying: !player.paused,
-                                timestamp: Date.now()
-                            });
-                        }
-                    });
-                } catch (err) {
-                    console.error('[Join Error]', err);
-                    return interaction.followUp('❌ Impossible de rejoindre le salon vocal.');
-                }
-            }
-        }
-
         const nodes = Array.from(interaction.client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
         if (nodes.length === 0) {
             return interaction.followUp('❌ Aucun nœud Lavalink n\'est disponible pour le moment.');
+        }
+
+        try {
+            await ensureVoiceConnection(interaction.client, interaction.guild.id, channel.id);
+        } catch (err) {
+            console.error('[Join Error]', err);
+            return interaction.followUp('❌ Impossible de rejoindre le salon vocal.');
         }
 
         const playerNode = (queue.player && queue.player.node) ? queue.player.node : null;

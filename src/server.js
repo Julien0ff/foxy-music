@@ -6,6 +6,12 @@ const { getGuildConfig, updateGuildConfig } = require('./utils/db');
 const { updatePanel } = require('./utils/panelUpdater');
 const { fetchLyrics, cleanTitle } = require('./utils/lyrics');
 const PlaylistParser = require('./utils/playlistParser');
+const {
+    getQueue,
+    ensureVoiceConnection,
+    setupPlayerListeners: attachPlayerListeners,
+    safePlayTrack
+} = require('./commands/play');
 
 function startServer(client) {
     const app = express();
@@ -205,62 +211,7 @@ function startServer(client) {
 
     // Helper: configurer les écouteurs sur le player Shoukaku
     function setupPlayerListeners(playerInstance, queueInstance, gId, clientInstance) {
-        playerInstance.removeAllListeners();
-
-        playerInstance.on('start', () => {
-            console.log(`[Player Web API] Now streaming: ${queueInstance.currentTrack?.title || 'Unknown Track'}`);
-            updatePanel(clientInstance, gId);
-        });
-
-        playerInstance.on('end', (reason) => {
-            console.log(`[Player Web API] Track ended. Reason: ${reason.reason}`);
-            if (reason.reason === 'REPLACED') return;
-            const command = clientInstance.commands.get('play');
-            if (command && command.handleLoadFailed && reason.reason === 'loadFailed') {
-                command.handleLoadFailed(gId, clientInstance, queueInstance.currentTrack);
-            } else if (command && command.playNext) {
-                command.playNext(gId, clientInstance);
-            }
-        });
-
-        playerInstance.on('exception', (exception) => {
-            console.error('[Player Web API Exception]', exception.exception?.message || exception.exception || exception);
-            const command = clientInstance.commands.get('play');
-            if (command && command.handleLoadFailed && queueInstance.currentTrack && !queueInstance.currentTrack.isFallback) {
-                console.log(`[Player Web API Fallback] Déclenchement automatique du fallback SoundCloud suite à une exception audio...`);
-                command.handleLoadFailed(gId, clientInstance, queueInstance.currentTrack);
-            }
-        });
-
-        playerInstance.on('stuck', (stuck) => {
-            console.warn('[Player Web API Stuck] Threshold exceeded (ms):', stuck.thresholdMs);
-            const command = clientInstance.commands.get('play');
-            if (command && command.playNext) command.playNext(gId, clientInstance);
-        });
-
-        playerInstance.on('error', (error) => {
-            console.error('[Player Web API Error]', error);
-            const command = clientInstance.commands.get('play');
-            if (command && command.playNext) command.playNext(gId, clientInstance);
-        });
-
-        playerInstance.on('update', (packet) => {
-            const rawPos = (packet?.state && typeof packet.state.position === 'number')
-                ? packet.state.position
-                : (typeof playerInstance.position === 'number' ? playerInstance.position : 0);
-            if (global.io) {
-                global.io.to(`queue_${gId}`).emit('player_position', {
-                    position: rawPos,
-                    isPlaying: !playerInstance.paused,
-                    timestamp: Date.now()
-                });
-            }
-        });
-
-        playerInstance.on('closed', (reason) => {
-            console.warn(`[Player Web API Closed] ${reason?.reason || 'Connection closed'}`);
-            if (queueInstance.player === playerInstance) queueInstance.player = null;
-        });
+        attachPlayerListeners(playerInstance, queueInstance, gId, clientInstance);
     }
 
     app.get('/', (req, res) => {
@@ -416,38 +367,18 @@ function startServer(client) {
             return res.status(503).json({ error: 'Aucun serveur Lavalink n\'est en ligne pour le moment. Veuillez patienter ou vérifier la configuration.' });
         }
 
-        if (!global.queues) global.queues = new Map();
-        let queue = global.queues.get(guildId);
-        if (!queue) {
-            queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: 100 };
-            global.queues.set(guildId, queue);
-        }
-
         try {
-            let player = queue.player || client.shoukaku.players.get(guildId);
+            const existingConn = client.shoukaku.connections.get(guildId);
+            const currentChannelId = existingConn?.channelId || guild.members.me?.voice?.channelId || null;
+            const existingPlayer = client.shoukaku.players.get(guildId);
 
-            // Si le bot est déjà connecté dans ce salon exact
-            if (player && player.channelId === channelId) {
-                queue.player = player;
-                return res.json({ success: true, alreadyConnected: true });
+            if (existingConn && existingConn.state === 1 && existingPlayer && currentChannelId === channelId) {
+                const queue = getQueue(guildId);
+                queue.player = existingPlayer;
+                return res.json({ success: true, alreadyConnected: true, channelId });
             }
 
-            // Déconnexion propre si on change de salon
-            if (player && player.channelId !== channelId) {
-                try {
-                    await client.shoukaku.leaveVoiceChannel(guildId).catch(() => {});
-                } catch (_) {}
-            }
-
-            player = await client.shoukaku.joinVoiceChannel({
-                guildId: guildId,
-                channelId: channelId,
-                shardId: 0,
-                deaf: true
-            });
-            queue.player = player;
-            setupPlayerListeners(player, queue, guildId, client);
-
+            await ensureVoiceConnection(client, guildId, channelId);
             res.json({ success: true, channelId });
         } catch (e) {
             console.error(`[API /connect] Erreur lors de la connexion au salon vocal ${channelId} (${guildId}):`, e);
@@ -539,7 +470,7 @@ function startServer(client) {
     app.post('/api/guilds/:id/skip', (req, res) => {
         const queue = global.queues ? global.queues.get(req.params.id) : null;
         if (queue && queue.player) {
-            // Stopping the player triggers the Idle event, which naturally calls playNext
+            queue.isSkipping = true;
             queue.player.stopTrack();
             return res.json({ success: true });
         }
@@ -555,37 +486,20 @@ function startServer(client) {
         if (nodes.length === 0) return res.status(503).json({ error: 'Aucun serveur Lavalink disponible pour le moment' });
 
         try {
-            // Helpers
-            const getSpotifyTrackName = async (url) => {
-                return PlaylistParser.getSpotifyTrackName(url);
-            };
-            const getAppleMusicTrackName = async (url) => {
-                try { const res = await fetch(`https://music.apple.com/oembed?url=${encodeURIComponent(url)}`); if (res.ok) return (await res.json()).title; const match = url.match(/\/album\/([^/]+)/); return match ? match[1].replace(/-/g, ' ') : null; } catch { return null; }
-            };
-            const getDeezerTrackName = async (url) => {
-                try { const res = await fetch(`https://deezer.com/oembed?url=${encodeURIComponent(url)}`); return res.ok ? (await res.json()).title : null; } catch { return null; }
-            };
-            const getYouTubeVideoTitle = async (url) => {
+            let queue = getQueue(guildId);
+
+            // Connect to voice channel BEFORE resolving the track so we prioritize the player's own node
+            if (!queue.player) {
                 try {
-                    const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.title) return data.title;
-                    }
+                    await ensureVoiceConnection(client, guildId);
                 } catch (err) {
-                    console.warn('[Web YouTube Title] Official oembed failed:', err.message);
+                    console.error('Failed to auto-connect voice channel:', err);
                 }
-                try {
-                    const res = await fetch(`https://noembed.com/embed?url=${encodeURIComponent(url)}`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data.title) return data.title;
-                    }
-                } catch (err) {
-                    console.warn('[Web YouTube Title] Noembed fallback failed:', err.message);
-                }
-                return null;
-            };
+            }
+
+            if (!queue.player) {
+                return res.status(400).json({ error: 'Le bot doit d\'abord être connecté à un salon vocal.' });
+            }
 
             let finalQuery = query;
             let shouldForceFinalQuery = false;
@@ -595,11 +509,7 @@ function startServer(client) {
                 shouldForceFinalQuery = true;
             }
 
-            // Prioritize the player's own node to avoid track decode mismatches
-            let queue = global.queues ? global.queues.get(guildId) : null;
-            const playerNode = queue?.player?.node;
-
-            // Order nodes: player's node first, then others as fallback
+            const playerNode = queue.player?.node;
             const orderedNodes = playerNode
                 ? [playerNode, ...nodes.filter(n => n.name !== playerNode.name)]
                 : nodes;
@@ -639,64 +549,16 @@ function startServer(client) {
 
             if (!track) return res.status(404).json({ error: 'No tracks in result' });
 
-            // Native Lavalink track resolution used instead of YouTube -> SoundCloud redirect hack.
-
             // Normalize track object
             const trackObj = {
                 title: track.info.title,
+                artist: track.info.author || '',
                 url: track.info.uri,
                 encoded: track.encoded,
                 duration: track.info.length,
                 artworkUrl: track.info.artworkUrl || null,
                 nodeName: resolvedNode?.name
             };
-
-            // Add to queue
-            if (!global.queues) global.queues = new Map();
-            queue = global.queues.get(guildId);
-
-            if (!queue) {
-                queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: 100 };
-                global.queues.set(guildId, queue);
-            }
-
-            if (!queue.player) {
-                let player = client.shoukaku.players.get(guildId);
-                if (player) {
-                    queue.player = player;
-                } else {
-                    // Try to find a voice channel to connect to automatically
-                    const guild = client.guilds.cache.get(guildId);
-                    if (guild) {
-                        const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
-                        // Find a channel with members first
-                        let targetChannel = voiceChannels.find(c => c.members.filter(m => !m.user.bot).size > 0);
-                        if (!targetChannel) {
-                            // Fallback to the first voice channel
-                            targetChannel = voiceChannels.first();
-                        }
-
-                        if (targetChannel) {
-                            try {
-                                player = await client.shoukaku.joinVoiceChannel({
-                                    guildId: guildId,
-                                    channelId: targetChannel.id,
-                                    shardId: 0,
-                                    deaf: true
-                                });
-                                queue.player = player;
-                                setupPlayerListeners(player, queue, guildId, client);
-                            } catch (err) {
-                                console.error('Failed to auto-connect voice channel:', err);
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (!queue.player) {
-                return res.status(400).json({ error: 'Le bot doit d\'abord être connecté à un salon vocal.' });
-            }
 
             queue.tracks.push(trackObj);
 
@@ -707,16 +569,7 @@ function startServer(client) {
 
                 try {
                     if (queue.player) {
-                        if (trackToPlay.encoded) {
-                            try {
-                                await queue.player.playTrack({ track: { encoded: trackToPlay.encoded } });
-                            } catch (encodedErr) {
-                                console.warn(`[Player] Web Play failed encoded, falling back to identifier: ${encodedErr.message}`);
-                                await queue.player.playTrack({ track: { identifier: trackToPlay.url } });
-                            }
-                        } else {
-                            await queue.player.playTrack({ track: { identifier: trackToPlay.url } });
-                        }
+                        await safePlayTrack(queue.player, trackToPlay, client, guildId);
                     }
                 } catch (e) {
                     console.error('Web Play Error:', e);
@@ -758,37 +611,13 @@ function startServer(client) {
             return res.status(404).json({ error: 'Serveur Discord non trouvé' });
         }
 
-        if (!global.queues) global.queues = new Map();
-        let queue = global.queues.get(guildId);
-        if (!queue) {
-            queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: 100 };
-            global.queues.set(guildId, queue);
-        }
+        const queue = getQueue(guildId);
 
-        // Auto-connect to voice channel if not connected
         if (!queue.player) {
-            let player = client.shoukaku.players.get(guildId);
-            if (player) {
-                queue.player = player;
-            } else {
-                const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
-                let targetChannel = voiceChannels.find(c => c.members.filter(m => !m.user.bot).size > 0);
-                if (!targetChannel) targetChannel = voiceChannels.first();
-
-                if (targetChannel) {
-                    try {
-                        player = await client.shoukaku.joinVoiceChannel({
-                            guildId: guildId,
-                            channelId: targetChannel.id,
-                            shardId: 0,
-                            deaf: true
-                        });
-                        queue.player = player;
-                        setupPlayerListeners(player, queue, guildId, client);
-                    } catch (err) {
-                        console.error('Failed to auto-connect voice channel for file play:', err);
-                    }
-                }
+            try {
+                await ensureVoiceConnection(client, guildId);
+            } catch (err) {
+                console.error('Failed to auto-connect voice channel for file play:', err);
             }
         }
 
@@ -906,15 +735,7 @@ function startServer(client) {
 
                 try {
                     if (queue.player) {
-                        if (toPlay.encoded) {
-                            try {
-                                await queue.player.playTrack({ track: { encoded: toPlay.encoded } });
-                            } catch (encErr) {
-                                await queue.player.playTrack({ track: { identifier: toPlay.url } });
-                            }
-                        } else {
-                            await queue.player.playTrack({ track: { identifier: toPlay.url } });
-                        }
+                        await safePlayTrack(queue.player, toPlay, client, guildId);
                     }
                 } catch (e) {
                     console.error('[PlayFile Web] Play Error:', e);
@@ -1196,10 +1017,21 @@ function startServer(client) {
 
             emitProgress({ status: 'parsing', message: 'Analyse de la playlist via Lavalink...' });
 
-            const node = getIdealNode(client);
-            if (!node) throw new Error('Aucun nœud Lavalink disponible pour le moment.');
+            const onlineNodes = Array.from(client.shoukaku?.nodes?.values() || []).filter(n => n.state === 1);
+            if (onlineNodes.length === 0) throw new Error('Aucun nœud Lavalink disponible pour le moment.');
 
-            const lavalinkResult = await node.rest.resolve(url);
+            let lavalinkResult = null;
+            for (const n of onlineNodes) {
+                try {
+                    const res = await n.rest.resolve(url);
+                    const lt = res?.loadType?.toLowerCase();
+                    if (res && lt && lt !== 'empty' && lt !== 'error') {
+                        lavalinkResult = res;
+                        break;
+                    }
+                } catch (_) {}
+            }
+
             const loadType = lavalinkResult?.loadType?.toLowerCase();
 
             if (!lavalinkResult || loadType === 'empty' || loadType === 'error') {
@@ -1239,48 +1071,14 @@ function startServer(client) {
 
             emitProgress({ status: 'parsed', message: `${result.tracks.length} pistes trouvées`, total: result.tracks.length, name: result.name });
 
-            if (!global.queues) global.queues = new Map();
-            let queue = global.queues.get(guildId);
-            if (!queue) {
-                const { getGuildConfig } = require('./utils/db');
-                const config = getGuildConfig(guildId);
-                queue = { tracks: [], currentTrack: null, player: null, loop: false, volume: config.defaultVolume || 100, autoplay: config.autoplay || false };
-                global.queues.set(guildId, queue);
-            }
+            const queue = getQueue(guildId);
 
             // Ensure player is connected
             if (!queue.player) {
-                let player = client.shoukaku.players.get(guildId);
-                if (player) {
-                    queue.player = player;
-                } else {
-                    const guild = client.guilds.cache.get(guildId);
-                    if (guild) {
-                        // Use channelId from request body if provided, otherwise auto-detect
-                        let targetChannelId = channelId;
-                        if (!targetChannelId) {
-                            const voiceChannels = guild.channels.cache.filter(c => c.isVoiceBased());
-                            let targetChannel = voiceChannels.find(c => c.members.filter(m => !m.user.bot).size > 0);
-                            if (!targetChannel) targetChannel = voiceChannels.first();
-                            targetChannelId = targetChannel?.id;
-                        }
-
-                        if (targetChannelId) {
-                            try {
-                                player = await client.shoukaku.joinVoiceChannel({
-                                    guildId: guildId,
-                                    channelId: targetChannelId,
-                                    shardId: 0,
-                                    deaf: true
-                                });
-                                queue.player = player;
-                                player.setGlobalVolume(queue.volume);
-                                setupPlayerListeners(player, queue, guildId, client);
-                            } catch (err) {
-                                console.error('Failed to auto-connect voice channel:', err);
-                            }
-                        }
-                    }
+                try {
+                    await ensureVoiceConnection(client, guildId, channelId || null);
+                } catch (err) {
+                    console.error('Failed to auto-connect voice channel:', err);
                 }
             }
 

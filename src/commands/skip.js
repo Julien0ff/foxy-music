@@ -17,6 +17,7 @@ module.exports = {
             return interaction.reply({ content: 'There is no music playing right now!', ephemeral: true });
         }
 
+        queue.isSkipping = true;
         await queue.player.stopTrack();
         return interaction.reply('🦊 Music skipped!');
     },

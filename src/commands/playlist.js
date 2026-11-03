@@ -116,49 +116,13 @@ module.exports = {
             if (!channel) return interaction.reply({ content: '❌ Vous devez être dans un salon vocal!', ephemeral: true });
 
             await interaction.deferReply();
-            const { playNext } = require('./play');
-            
-            if (!global.queues) global.queues = new Map();
-            if (!global.queues.has(interaction.guild.id)) {
-                const { getGuildConfig } = require('../utils/db');
-                const config = getGuildConfig(interaction.guild.id);
-                global.queues.set(interaction.guild.id, {
-                    tracks: [],
-                    currentTrack: null,
-                    player: null,
-                    history: [],
-                    autoplay: config.autoplay || false,
-                    volume: config.defaultVolume || 100,
-                    leaveTimeout: null
-                });
-            }
-            const queue = global.queues.get(interaction.guild.id);
+            const { playNext, getQueue, ensureVoiceConnection } = require('./play');
+            const queue = getQueue(interaction.guild.id);
 
-            if (!queue.player) {
-                let player = interaction.client.shoukaku.players.get(interaction.guild.id);
-                if (player) {
-                    queue.player = player;
-                } else {
-                    try {
-                        try { await interaction.client.shoukaku.leaveVoiceChannel(interaction.guild.id); } catch (_) {}
-                        player = await interaction.client.shoukaku.joinVoiceChannel({
-                            guildId: interaction.guild.id,
-                            channelId: channel.id,
-                            shardId: 0,
-                            deaf: true
-                        });
-                        queue.player = player;
-                        player.setGlobalVolume(queue.volume);
-                        
-                        player.on('start', () => updatePanel(interaction.client, interaction.guild.id));
-                        player.on('end', (reason) => {
-                            if (reason.reason === 'REPLACED') return;
-                            playNext(interaction.guild.id, interaction.client);
-                        });
-                    } catch (err) {
-                        return interaction.followUp('❌ Impossible de rejoindre le salon vocal.');
-                    }
-                }
+            try {
+                await ensureVoiceConnection(interaction.client, interaction.guild.id, channel.id);
+            } catch (err) {
+                return interaction.followUp('❌ Impossible de rejoindre le salon vocal.');
             }
 
             const isAlreadyPlaying = !!queue.currentTrack;

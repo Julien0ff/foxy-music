@@ -48,15 +48,29 @@ const client = new Client({
 
 client.commands = new Collection();
 
+const NODE_PRIORITY = ['Self-Hosted-Lavalink', 'Nazha', 'Kasawa', 'Millo'];
+
 const shoukaku = new Shoukaku(
     new Connectors.DiscordJS(client),
     Nodes,
     {
         moveOnDisconnect: true,
         resume: true,
-        reconnectTries: 5,
+        reconnectTries: 100,
         reconnectInterval: 10,
-        restTimeout: 10000
+        restTimeout: 10000,
+        nodeResolver: (nodes) => {
+            const connected = [...nodes.values()].filter(node => node.state === 1);
+            if (connected.length === 0) return undefined;
+            return connected.sort((a, b) => {
+                const prioA = NODE_PRIORITY.indexOf(a.name);
+                const prioB = NODE_PRIORITY.indexOf(b.name);
+                const rankA = prioA === -1 ? 999 : prioA;
+                const rankB = prioB === -1 ? 999 : prioB;
+                if (rankA !== rankB) return rankA - rankB;
+                return a.penalties - b.penalties;
+            })[0];
+        }
     }
 );
 shoukaku.on('error', (name, error) => console.error(`[Lavalink Node ${name}] Error:`, error));
@@ -118,6 +132,7 @@ client.on('interactionCreate', async interaction => {
                     await interaction.reply({ content: '⏸️ Musique en pause.', ephemeral: true });
                 }
             } else if (interaction.customId === 'foxy_skip') {
+                queue.isSkipping = true;
                 await queue.player.stopTrack(); // Emits 'end' and triggers next track in our queue system
                 await interaction.reply({ content: '⏭️ Musique ignorée.', ephemeral: true });
             } else if (interaction.customId === 'foxy_stop') {
@@ -225,23 +240,29 @@ client.on('voiceStateUpdate', (oldState, newState) => {
     const guildId = oldState.guild.id || newState.guild.id;
 
     // Handle bot being manually disconnected by a user
-    if (oldState.member.id === client.user.id && oldState.channelId && !newState.channelId) {
+    if (oldState.member?.id === client.user.id && oldState.channelId && !newState.channelId) {
+        if (client.reconnectingGuilds && client.reconnectingGuilds.has(guildId)) {
+            return;
+        }
         console.log(`[Voice] Bot was manually disconnected from guild ${guildId}`);
         const queue = global.queues ? global.queues.get(guildId) : null;
-        if (queue && queue.player) {
-            try {
-                // Destroy the player gracefully
-                client.shoukaku.leaveVoiceChannel(guildId).catch(() => { });
-                queue.player = null;
-                queue.currentTrack = null;
-                // Optional: clear the queue or keep tracks if they want to resume later
-                queue.tracks = [];
-            } catch (e) {
-                console.error(`[Voice] Error handling bot disconnect:`, e);
+        if (queue) {
+            if (queue.leaveTimeout) {
+                clearTimeout(queue.leaveTimeout);
+                queue.leaveTimeout = null;
             }
-            const { updatePanel } = require('./utils/panelUpdater');
-            updatePanel(client, guildId);
+            queue.player = null;
+            queue.currentTrack = null;
+            queue.tracks = [];
         }
+        try {
+            // Always clean up Shoukaku connection & player even if queue.player was already null
+            client.shoukaku.leaveVoiceChannel(guildId).catch(() => {});
+        } catch (e) {
+            console.error(`[Voice] Error handling bot disconnect:`, e);
+        }
+        const { updatePanel } = require('./utils/panelUpdater');
+        updatePanel(client, guildId);
     }
 
     if (global.io) {
