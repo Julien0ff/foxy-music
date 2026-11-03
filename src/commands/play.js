@@ -47,8 +47,9 @@ async function safePlayTrack(player, track, client, guildId) {
     if (!player || !track) return false;
     const playerNode = player.node;
 
-    // 1. If we have an encoded track from the same node (or standard compatible source), try it first
-    if (track.encoded) {
+    // 1. If we have an encoded track from the SAME node (or unknown origin), try it first
+    const sameNodeOrigin = !track.nodeName || !playerNode?.name || track.nodeName === playerNode.name;
+    if (track.encoded && sameNodeOrigin) {
         try {
             await player.playTrack({ track: { encoded: track.encoded } });
             return true;
@@ -71,6 +72,7 @@ async function safePlayTrack(player, track, client, guildId) {
     const searchBase = `${track.title || ''} ${track.artist || track.author || ''}`.trim() || track.query;
     if (searchBase && !track.isFile) {
         queriesToTry.push(`ytmsearch:${searchBase}`);
+        queriesToTry.push(`ytsearch:${searchBase}`);
         queriesToTry.push(`scsearch:${searchBase}`);
     }
     if (track.url && !queriesToTry.includes(track.url)) {
@@ -93,6 +95,12 @@ async function safePlayTrack(player, track, client, guildId) {
                 }
             } catch (_) {}
         }
+    }
+
+    // 3. Final fallback if track.encoded was from another node and re-resolve failed
+    if (track.encoded && !sameNodeOrigin) {
+        await player.playTrack({ track: { encoded: track.encoded } });
+        return true;
     }
 
     throw new Error(`Unable to resolve or play track "${track.title || track.url}" on active Lavalink node`);
@@ -256,11 +264,11 @@ async function ensureVoiceConnection(client, guildId, targetChannelId = null) {
             if (!existingPlayer._foxyListenersAttached) {
                 setupPlayerListeners(existingPlayer, queue, guildId, client);
             }
-            if (currentChannelId === channelId) {
+            if (!targetChannelId || currentChannelId === targetChannelId) {
                 return existingPlayer;
             }
             // Move voice channel directly without disconnecting/destroying the player
-            existingConn.channelId = channelId;
+            existingConn.channelId = targetChannelId;
             existingConn.sendVoiceUpdate();
             return existingPlayer;
         }

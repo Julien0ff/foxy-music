@@ -13,16 +13,22 @@ const Nodes = [
         secure: process.env.LAVALINK_SECURE === 'true'
     }] : []),
     {
-        name: 'Nazha',
-        url: 'lavalink.nazha.online:443',
-        auth: 'nazhafreelava',
-        secure: true
+        name: 'Trinium',
+        url: 'lavalink.triniumhost.com:2333',
+        auth: 'kirito',
+        secure: false
     },
     {
         name: 'Kasawa',
         url: 'lava2.kasawa.pro:2334',
         auth: 'youshallnotpass',
         secure: false
+    },
+    {
+        name: 'Nazha',
+        url: 'lavalink.nazha.online:443',
+        auth: 'nazhafreelava',
+        secure: true
     },
     {
         name: 'Millo',
@@ -48,7 +54,27 @@ const client = new Client({
 
 client.commands = new Collection();
 
-const NODE_PRIORITY = ['Self-Hosted-Lavalink', 'Nazha', 'Kasawa', 'Millo'];
+const NODE_FALLBACK_ORDER = ['Self-Hosted-Lavalink', 'Trinium', 'Kasawa', 'Nazha', 'Millo'];
+
+function getNodeHealthScore(node) {
+    if (node.name === 'Self-Hosted-Lavalink') return -10000;
+    let score = typeof node.penalties === 'number' ? node.penalties : 0;
+    const stats = node.stats;
+    if (stats) {
+        const cores = Math.max(1, stats.cpu?.cores || 1);
+        const sysLoad = (stats.cpu?.systemLoad || 0) / cores;
+        const lavaLoad = (stats.cpu?.lavalinkLoad || 0) / cores;
+        const deficit = Math.max(0, stats.frameStats?.deficit || 0);
+        const nulled = Math.max(0, stats.frameStats?.nulled || 0);
+        const playing = stats.playingPlayers || 0;
+        score += (sysLoad * 100) + (lavaLoad * 120) + (deficit * 10) + (nulled * 20) + (playing * 1.5);
+    }
+    // Slight baseline preference for low-load nodes and penalty for Millo which drops ws 1011 under heavy load
+    const orderIdx = NODE_FALLBACK_ORDER.indexOf(node.name);
+    if (orderIdx !== -1) score += orderIdx * 5;
+    if (node.name === 'Millo') score += 500;
+    return score;
+}
 
 const shoukaku = new Shoukaku(
     new Connectors.DiscordJS(client),
@@ -59,17 +85,11 @@ const shoukaku = new Shoukaku(
         reconnectTries: 100,
         reconnectInterval: 10,
         restTimeout: 10000,
+        voiceConnectionTimeout: 15000,
         nodeResolver: (nodes) => {
             const connected = [...nodes.values()].filter(node => node.state === 1);
             if (connected.length === 0) return undefined;
-            return connected.sort((a, b) => {
-                const prioA = NODE_PRIORITY.indexOf(a.name);
-                const prioB = NODE_PRIORITY.indexOf(b.name);
-                const rankA = prioA === -1 ? 999 : prioA;
-                const rankB = prioB === -1 ? 999 : prioB;
-                if (rankA !== rankB) return rankA - rankB;
-                return a.penalties - b.penalties;
-            })[0];
+            return connected.sort((a, b) => getNodeHealthScore(a) - getNodeHealthScore(b))[0];
         }
     }
 );

@@ -6,7 +6,7 @@ import QueueList from './components/QueueList';
 import SearchBar from './components/SearchBar';
 import Sidebar from './components/Sidebar';
 import VoiceChannels from './components/VoiceChannels';
-import { Music, X } from 'lucide-react';
+import { Music, X, Volume2, ListMusic, Disc } from 'lucide-react';
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import './App.css';
 import { API_URL } from './config';
@@ -136,6 +136,7 @@ function App() {
   const [sharedGuilds, setSharedGuilds] = useState([]);
   const [selectedGuildId, setSelectedGuildId] = useState(null);
   const [lyricsMode, setLyricsMode] = useState(false);
+  const [mobileTab, setMobileTab] = useState('player');
   const [voiceData, setVoiceData] = useState({ channels: [], botVoiceChannel: null });
   
   // Settings and Playlist Import States
@@ -577,48 +578,90 @@ function App() {
       <div className="main-wrapper">
         <main className="dashboard-layout">
           {selectedGuildId ? (
-            <div className={`dashboard-grid ${lyricsMode ? 'lyrics-active-grid' : ''}`}>
-              <div className="left-column">
-                <VoiceChannels 
-                  voiceData={voiceData}
-                  onConnect={handleConnectBot}
-                  userId={user?.id}
-                />
-              </div>
-              
-              <div className={`center-column ${lyricsMode ? 'lyrics-center' : ''}`}>
-                <div className={`search-wrapper ${lyricsMode ? 'search-hidden' : ''}`}>
-                  <SearchBar guildId={selectedGuildId} />
-                </div>
-                <div className={`player-wrapper ${lyricsMode ? 'lyrics-player-wrapper' : ''}`}>
-                  <Player 
-                    guildId={selectedGuildId}
-                    currentTrack={queueState.currentTrack} 
-                    isPlaying={queueState.isPlaying}
-                    serverPosition={queueState.position}
-                    positionTimestamp={queueState.positionTimestamp}
-                    duration={queueState.duration}
-                    volume={queueState.volume}
-                    loop={queueState.loop}
-                    setQueueState={setQueueState}
-                    onLyricsToggle={setLyricsMode}
-                    tracks={queueState.tracks}
-                    motionUrl={motionUrl}
+            <>
+              <div className={`dashboard-grid mobile-tab-${mobileTab} ${lyricsMode ? 'lyrics-active-grid' : ''}`}>
+                <div className="left-column">
+                  <VoiceChannels 
+                    voiceData={voiceData}
+                    onConnect={handleConnectBot}
+                    userId={user?.id}
                   />
+                </div>
+                
+                <div className={`center-column ${lyricsMode ? 'lyrics-center' : ''}`}>
+                  <div className={`search-wrapper ${lyricsMode ? 'search-hidden' : ''}`}>
+                    <SearchBar guildId={selectedGuildId} />
+                  </div>
+                  <div className={`player-wrapper ${lyricsMode ? 'lyrics-player-wrapper' : ''}`}>
+                    <Player 
+                      guildId={selectedGuildId}
+                      currentTrack={queueState.currentTrack} 
+                      isPlaying={queueState.isPlaying}
+                      serverPosition={queueState.position}
+                      positionTimestamp={queueState.positionTimestamp}
+                      duration={queueState.duration}
+                      volume={queueState.volume}
+                      loop={queueState.loop}
+                      setQueueState={setQueueState}
+                      onLyricsToggle={(val) => {
+                        setLyricsMode(val);
+                        if (val) setMobileTab('player');
+                      }}
+                      tracks={queueState.tracks}
+                      motionUrl={motionUrl}
+                    />
+                  </div>
+                </div>
+
+                <div className={`right-column ${lyricsMode ? 'right-column-hidden' : ''}`}>
+                  <div className="queue-wrapper">
+                    <QueueList 
+                      tracks={queueState.tracks} 
+                      onRemoveTrack={handleRemoveTrack}
+                      onClearQueue={handleClearQueue}
+                      onShuffleQueue={handleShuffleQueue}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className={`right-column ${lyricsMode ? 'right-column-hidden' : ''}`}>
-                <div className="queue-wrapper">
-                  <QueueList 
-                    tracks={queueState.tracks} 
-                    onRemoveTrack={handleRemoveTrack}
-                    onClearQueue={handleClearQueue}
-                    onShuffleQueue={handleShuffleQueue}
-                  />
-                </div>
-              </div>
-            </div>
+              <nav className="mobile-nav-bar" aria-label="Navigation mobile">
+                <button
+                  type="button"
+                  className={`mobile-nav-btn ${mobileTab === 'voice' ? 'active' : ''}`}
+                  onClick={() => setMobileTab('voice')}
+                >
+                  <div className="mobile-nav-icon-wrap">
+                    <Volume2 size={18} />
+                    {voiceData?.botVoiceChannel && <span className="mobile-nav-dot" />}
+                  </div>
+                  <span>Salons</span>
+                </button>
+                <button
+                  type="button"
+                  className={`mobile-nav-btn ${mobileTab === 'player' ? 'active' : ''}`}
+                  onClick={() => setMobileTab('player')}
+                >
+                  <div className="mobile-nav-icon-wrap">
+                    <Disc size={18} className={queueState.isPlaying ? 'animate-spin' : ''} />
+                  </div>
+                  <span>Lecteur</span>
+                </button>
+                <button
+                  type="button"
+                  className={`mobile-nav-btn ${mobileTab === 'queue' ? 'active' : ''}`}
+                  onClick={() => setMobileTab('queue')}
+                >
+                  <div className="mobile-nav-icon-wrap">
+                    <ListMusic size={18} />
+                    {queueState.tracks.length > 0 && (
+                      <span className="mobile-nav-badge">{queueState.tracks.length}</span>
+                    )}
+                  </div>
+                  <span>File</span>
+                </button>
+              </nav>
+            </>
           ) : (
             <div className="no-server-selected">
               <Music size={48} opacity={0.5} />
